@@ -54,6 +54,10 @@ export function OfficialRating({ official, onRate, currentIndex, totalCount }: O
               src={official.image || "/placeholder.svg"}
               alt={official.fullName}
               className="w-full h-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.src = "/placeholder.svg?height=128&width=128"
+              }}
             />
           </div>
 

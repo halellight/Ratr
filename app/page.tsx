@@ -1,15 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Users, Award, Share2, ChevronRight } from "lucide-react"
+import { Users, Award, Share2, ChevronRight, Settings } from "lucide-react"
 import { OfficialRating } from "./components/official-rating"
 import { ResultsCard } from "./components/results-card"
+import { AdminPanel } from "./components/admin-panel"
 
-const officials = [
+const defaultOfficials = [
   {
     id: "president",
     name: "President",
@@ -227,7 +228,22 @@ export default function Component() {
   const [currentOfficialIndex, setCurrentOfficialIndex] = useState(0)
   const [ratings, setRatings] = useState<Record<string, number>>({})
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [officialsToRate, setOfficialsToRate] = useState<typeof officials>([])
+  const [officialsToRate, setOfficialsToRate] = useState<typeof defaultOfficials>([])
+  const [officials, setOfficials] = useState<typeof defaultOfficials>(defaultOfficials)
+  const [showAdminPanel, setShowAdminPanel] = useState(false)
+
+  // Load officials data from localStorage on component mount
+  useEffect(() => {
+    const savedOfficials = localStorage.getItem("officialsData")
+    if (savedOfficials) {
+      try {
+        const parsedOfficials = JSON.parse(savedOfficials)
+        setOfficials(parsedOfficials)
+      } catch (e) {
+        console.error("Error parsing officials data:", e)
+      }
+    }
+  }, [])
 
   const progress = (Object.keys(ratings).length / officialsToRate.length) * 100
 
@@ -249,6 +265,19 @@ export default function Component() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50">
         <div className="container mx-auto px-4 py-8">
+          {/* Admin Button */}
+          <div className="fixed top-4 right-4 z-40">
+            <Button
+              onClick={() => setShowAdminPanel(true)}
+              variant="outline"
+              size="sm"
+              className="bg-white/90 backdrop-blur-sm"
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Manage Photos
+            </Button>
+          </div>
+
           {/* Creative Hero Section */}
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-green-600 to-green-700 text-white mb-16">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
@@ -356,6 +385,10 @@ export default function Component() {
                       src={official.image || "/placeholder.svg"}
                       alt={official.fullName}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        target.src = "/placeholder.svg?height=80&width=80"
+                      }}
                     />
                   </div>
                   <Badge variant="secondary" className="mb-2">
@@ -385,6 +418,11 @@ export default function Component() {
             </Button>
           </div>
         </div>
+
+        {/* Admin Panel */}
+        {showAdminPanel && (
+          <AdminPanel officials={officials} onUpdateOfficials={setOfficials} onClose={() => setShowAdminPanel(false)} />
+        )}
       </div>
     )
   }
