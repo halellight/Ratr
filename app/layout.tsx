@@ -23,6 +23,9 @@ export const metadata: Metadata = {
       url: "https://ratedem.com",
     },
   ],
+  icons: {
+   icon: "/favicon.ico",
+  },
   creator: "Praise Ibe",
   openGraph: {
     title: "Rate Your Nigerian Leaders",
@@ -40,9 +43,7 @@ export const metadata: Metadata = {
     locale: "en_US",
     type: "website",
   },
-icons: {
-  icon: "/favicon.ico",
-},
+
 }
 
 export const viewport = {
