@@ -2,6 +2,7 @@ import type React from "react"
 import "@/app/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import type { Metadata } from "next"
+import { Analytics } from "@vercel/analytics/next"
 
 export const metadata: Metadata = {
   title: "Rate Your Nigerian Leaders",
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <Analytics/>
         <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900,300&display=swap" rel="stylesheet" />
       </head>
       <body className="font-satoshi">
