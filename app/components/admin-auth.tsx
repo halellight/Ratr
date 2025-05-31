@@ -1,19 +1,21 @@
 "use client"
 
 import type React from "react"
+import type { KeyboardEvent } from "react"
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Lock, Eye, EyeOff, Loader2 } from "lucide-react"
+import { Lock, Eye, EyeOff, Loader2, X } from "lucide-react"
 
 interface AdminAuthProps {
   onAuthenticated: () => void
+  onClose?: () => void
 }
 
-export function AdminAuth({ onAuthenticated }: AdminAuthProps) {
+export function AdminAuth({ onAuthenticated, onClose }: AdminAuthProps) {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -24,6 +26,18 @@ export function AdminAuth({ onAuthenticated }: AdminAuthProps) {
   useEffect(() => {
     checkAuthStatus()
   }, [])
+
+  // Add escape key handler
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && onClose) {
+        onClose()
+      }
+    }
+
+    document.addEventListener("keydown", handleEscape)
+    return () => document.removeEventListener("keydown", handleEscape)
+  }, [onClose])
 
   const checkAuthStatus = async () => {
     try {
@@ -66,6 +80,22 @@ export function AdminAuth({ onAuthenticated }: AdminAuthProps) {
     }
   }
 
+  const handleClose = () => {
+    if (onClose) {
+      // Clear any sensitive data before closing
+      setPassword("")
+      setError("")
+      onClose()
+    }
+  }
+
+  // Handle backdrop click
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget && onClose) {
+      handleClose()
+    }
+  }
+
   if (isCheckingAuth) {
     return (
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
@@ -79,8 +109,24 @@ export function AdminAuth({ onAuthenticated }: AdminAuthProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={handleBackdropClick}
+    >
+      <Card className="w-full max-w-md relative">
+        {/* Close Button */}
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-4 right-4 z-10 hover:bg-gray-100"
+            onClick={handleClose}
+            aria-label="Close authentication dialog"
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        )}
+
         <CardHeader className="text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Lock className="w-8 h-8 text-green-600" />
@@ -101,6 +147,7 @@ export function AdminAuth({ onAuthenticated }: AdminAuthProps) {
                   placeholder="Enter admin password"
                   className="pr-10"
                   required
+                  autoFocus
                 />
                 <Button
                   type="button"
@@ -108,24 +155,35 @@ export function AdminAuth({ onAuthenticated }: AdminAuthProps) {
                   size="sm"
                   className="absolute right-0 top-0 h-full px-3"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </Button>
               </div>
             </div>
 
-            {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">{error}</div>}
+            {error && (
+              <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md border border-red-200">{error}</div>
+            )}
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Authenticating...
-                </>
-              ) : (
-                "Access Admin Panel"
+            <div className="flex gap-2">
+              <Button type="submit" className="flex-1" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Authenticating...
+                  </>
+                ) : (
+                  "Access Admin Panel"
+                )}
+              </Button>
+
+              {onClose && (
+                <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>
+                  Cancel
+                </Button>
               )}
-            </Button>
+            </div>
           </form>
 
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
@@ -135,6 +193,15 @@ export function AdminAuth({ onAuthenticated }: AdminAuthProps) {
             </p>
             <p className="text-xs text-gray-500">In production, this would be replaced with proper authentication.</p>
           </div>
+
+          {/* Keyboard shortcuts hint */}
+          {onClose && (
+            <div className="mt-4 text-center">
+              <p className="text-xs text-gray-500">
+                Press <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Esc</kbd> to close
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

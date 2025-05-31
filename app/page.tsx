@@ -316,14 +316,14 @@ export default function Component() {
           </div>
 
           {/* Cloud Status Indicator */}
-          {!isLoadingImages && Object.keys(cloudImages).length > 0 && (
+          {/* {!isLoadingImages && Object.keys(cloudImages).length > 0 && (
             <div className="fixed top-4 left-4 z-40">
               <div className="bg-green-100 text-green-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 <Cloud className="w-4 h-4" />
                 <span>{Object.keys(cloudImages).length} cloud images loaded</span>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Creative Hero Section */}
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-green-600 to-green-700 text-white mb-16">
@@ -448,11 +448,11 @@ export default function Component() {
                     </div>
                     <div className="flex items-center justify-center gap-2 mb-2">
                       <Badge variant="secondary">{official.category}</Badge>
-                      {hasCloudImage && (
+                      {/* {hasCloudImage && (
                         <Badge variant="outline" className="text-xs text-green-600 border-green-600">
                           Cloud
                         </Badge>
-                      )}
+                      )} */}
                     </div>
                     <CardTitle className="text-lg">{official.name}</CardTitle>
                     <CardDescription className="text-sm">{official.fullName}</CardDescription>

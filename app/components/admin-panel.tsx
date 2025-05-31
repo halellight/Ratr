@@ -48,6 +48,7 @@ interface UploadResult {
 
 export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanelProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [showAuth, setShowAuth] = useState(true)
   const [editingOfficial, setEditingOfficial] = useState<Official | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
@@ -83,14 +84,14 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
   // Add escape key handler
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !editingOfficial) {
-        onClose()
+      if (e.key === "Escape" && !editingOfficial && isAuthenticated) {
+        handleClose()
       }
     }
 
     document.addEventListener("keydown", handleEscape)
     return () => document.removeEventListener("keydown", handleEscape)
-  }, [onClose, editingOfficial])
+  }, [editingOfficial, isAuthenticated])
 
   const loadCloudImages = async () => {
     setIsLoadingImages(true)
@@ -103,7 +104,7 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
       } else {
         console.error("Failed to load cloud images:", data.error)
         if (data.error.includes("not configured")) {
-          alert("⚠️ Blob storage configuration issue detected. Please check the debug panel for details.")
+          alert("⚠️ Blob storage configuration issue detected. Please check your environment variables.")
         }
         setCloudImages({})
       }
@@ -116,13 +117,35 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
     }
   }
 
+  const handleAuthenticated = () => {
+    setIsAuthenticated(true)
+    setShowAuth(false)
+  }
+
+  const handleAuthClose = () => {
+    setShowAuth(false)
+    // Close the entire admin panel when auth is cancelled
+    onClose()
+  }
+
   const handleLogout = async () => {
     try {
       await fetch("/api/admin/auth", { method: "DELETE" })
       setIsAuthenticated(false)
+      setShowAuth(true)
+      setCloudImages({})
     } catch (error) {
       console.error("Logout failed:", error)
     }
+  }
+
+  const handleClose = () => {
+    // Clear sensitive data before closing
+    setCloudImages({})
+    setEditingOfficial(null)
+    setSearchTerm("")
+    setSelectedCategory("all")
+    onClose()
   }
 
   // Filter officials based on search and category
@@ -180,9 +203,7 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
       const errorMessage = error instanceof Error ? error.message : "Unknown error"
 
       if (errorMessage.includes("Access denied") || errorMessage.includes("valid token")) {
-        alert(
-          "🔑 Access denied: Invalid or missing blob storage token. Please check the debug panel for configuration details.",
-        )
+        alert("🔑 Access denied: Invalid or missing blob storage token. Please check your environment variables.")
       } else if (errorMessage.includes("not configured")) {
         alert("⚙️ Blob storage is not properly configured. Please contact the administrator.")
       } else {
@@ -290,8 +311,14 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
     setEditingOfficial(null)
   }
 
-  if (!isAuthenticated) {
-    return <AdminAuth onAuthenticated={() => setIsAuthenticated(true)} />
+  // Show authentication if not authenticated
+  if (!isAuthenticated && showAuth) {
+    return <AdminAuth onAuthenticated={handleAuthenticated} onClose={handleAuthClose} />
+  }
+
+  // Don't render anything if auth was cancelled
+  if (!isAuthenticated && !showAuth) {
+    return null
   }
 
   return (
@@ -312,7 +339,7 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
-            <Button variant="ghost" size="icon" onClick={onClose}>
+            <Button variant="ghost" size="icon" onClick={handleClose} aria-label="Close admin panel">
               <X className="h-5 w-5" />
             </Button>
           </div>
