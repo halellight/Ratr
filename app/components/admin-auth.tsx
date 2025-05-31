@@ -132,7 +132,7 @@ export function AdminAuth({ onAuthenticated, onClose }: AdminAuthProps) {
             <Lock className="w-8 h-8 text-green-600" />
           </div>
           <CardTitle className="text-2xl">Admin Access Required</CardTitle>
-          <p className="text-gray-600">Enter the admin password to manage official photos</p>
+          <p className="text-gray-600">Enter your admin password to access the management panel</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -185,14 +185,6 @@ export function AdminAuth({ onAuthenticated, onClose }: AdminAuthProps) {
               )}
             </div>
           </form>
-
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium text-sm mb-2">Demo Access</h4>
-            <p className="text-xs text-gray-600 mb-2">
-              For demonstration purposes, use password: <code className="bg-white px-1 rounded">admin123</code>
-            </p>
-            <p className="text-xs text-gray-500">In production, this would be replaced with proper authentication.</p>
-          </div>
 
           {/* Keyboard shortcuts hint */}
           {onClose && (
