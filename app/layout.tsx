@@ -3,6 +3,7 @@ import "@/app/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import type { Metadata } from "next"
 import { Analytics } from "@vercel/analytics/next"
+import { ErrorBoundary } from "./components/error-boundary"
 
 export const metadata: Metadata = {
   title: "Rate Your Nigerian Leaders",
@@ -60,7 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-satoshi">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
         </ThemeProvider>
       </body>
     </html>

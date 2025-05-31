@@ -51,7 +51,7 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
   const [editingOfficial, setEditingOfficial] = useState<Official | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
-  const [isUploading, setIsUploading] = useState(isUploading)
+  const [isUploading, setIsUploading] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadResults, setUploadResults] = useState<UploadResult[]>([])
@@ -80,6 +80,18 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
     }
   }, [cloudImages])
 
+  // Add escape key handler
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !editingOfficial) {
+        onClose()
+      }
+    }
+
+    document.addEventListener("keydown", handleEscape)
+    return () => document.removeEventListener("keydown", handleEscape)
+  }, [onClose, editingOfficial])
+
   const loadCloudImages = async () => {
     setIsLoadingImages(true)
     try {
@@ -91,13 +103,13 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
       } else {
         console.error("Failed to load cloud images:", data.error)
         if (data.error.includes("not configured")) {
-          alert("Blob storage is not properly configured. Please check the BLOB_READ_WRITE_TOKEN environment variable.")
+          alert("⚠️ Blob storage configuration issue detected. Please check the debug panel for details.")
         }
         setCloudImages({})
       }
     } catch (error) {
       console.error("Failed to load cloud images:", error)
-      alert("Failed to connect to cloud storage. Please check your connection and try again.")
+      alert("❌ Failed to connect to cloud storage. Please check your connection and try again.")
       setCloudImages({})
     } finally {
       setIsLoadingImages(false)
@@ -146,8 +158,9 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
       clearInterval(progressInterval)
       setUploadProgress(100)
 
+      const data = await response.json()
+
       if (response.ok) {
-        const data = await response.json()
         setCloudImages((prev) => ({
           ...prev,
           [officialId]: data.url,
@@ -160,17 +173,22 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
           setUploadingId(null)
         }, 1000)
       } else {
-        const error = await response.json()
-        throw new Error(error.error || "Upload failed")
+        throw new Error(data.error || "Upload failed")
       }
     } catch (error) {
       console.error("Upload error:", error)
       const errorMessage = error instanceof Error ? error.message : "Unknown error"
-      if (errorMessage.includes("not configured")) {
-        alert("Blob storage is not properly configured. Please contact the administrator.")
+
+      if (errorMessage.includes("Access denied") || errorMessage.includes("valid token")) {
+        alert(
+          "🔑 Access denied: Invalid or missing blob storage token. Please check the debug panel for configuration details.",
+        )
+      } else if (errorMessage.includes("not configured")) {
+        alert("⚙️ Blob storage is not properly configured. Please contact the administrator.")
       } else {
-        alert(`Upload failed: ${errorMessage}`)
+        alert(`❌ Upload failed: ${errorMessage}`)
       }
+
       setIsUploading(false)
       setUploadingId(null)
       setUploadProgress(0)
@@ -198,7 +216,7 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
       }
     } catch (error) {
       console.error("Delete error:", error)
-      alert(`Delete failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+      alert(`❌ Delete failed: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 
@@ -256,7 +274,7 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
       }
     } catch (error) {
       console.error("Bulk upload error:", error)
-      alert(`Bulk upload failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+      alert(`❌ Bulk upload failed: ${error instanceof Error ? error.message : "Unknown error"}`)
       setIsUploading(false)
       setUploadProgress(0)
     }
@@ -366,7 +384,7 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
           <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
             <div className="flex items-center gap-2 mb-2">
               <Cloud className="w-5 h-5 text-green-600" />
-              <h3 className="font-semibold text-green-900">Cloud Storage Active</h3>
+              <h3 className="font-semibold text-green-900">Cloud Storage Status</h3>
             </div>
             <p className="text-sm text-green-700 mb-2">
               Images are stored securely in Vercel Blob and accessible globally. Changes are immediately visible to all
@@ -602,4 +620,3 @@ export function AdminPanel({ officials, onUpdateOfficials, onClose }: AdminPanel
     </div>
   )
 }
-// Note: The AdminAuth component is assumed to handle authentication and set isAuthenticated state
