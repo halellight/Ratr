@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Users, Award, Share2, ChevronRight, Settings } from "lucide-react"
+import { Users, Award, Share2, ChevronRight, Settings, Cloud } from "lucide-react"
 import { OfficialRating } from "./components/official-rating"
 import { ResultsCard } from "./components/results-card"
 import { AdminPanel } from "./components/admin-panel"
@@ -231,8 +231,10 @@ export default function Component() {
   const [officialsToRate, setOfficialsToRate] = useState<typeof defaultOfficials>([])
   const [officials, setOfficials] = useState<typeof defaultOfficials>(defaultOfficials)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
+  const [cloudImages, setCloudImages] = useState<Record<string, string>>({})
+  const [isLoadingImages, setIsLoadingImages] = useState(true)
 
-  // Load officials data from localStorage on component mount
+  // Load officials data from localStorage and cloud images on component mount
   useEffect(() => {
     const savedOfficials = localStorage.getItem("officialsData")
     if (savedOfficials) {
@@ -243,7 +245,42 @@ export default function Component() {
         console.error("Error parsing officials data:", e)
       }
     }
+
+    // Load cloud images for all users
+    loadCloudImages()
   }, [])
+
+  // Update officials with cloud images when they load
+  useEffect(() => {
+    if (Object.keys(cloudImages).length > 0) {
+      const updatedOfficials = officials.map((official) => ({
+        ...official,
+        image: cloudImages[official.id] || official.image,
+      }))
+      setOfficials(updatedOfficials)
+    }
+  }, [cloudImages])
+
+  const loadCloudImages = async () => {
+    try {
+      const response = await fetch("/api/officials/images")
+      const data = await response.json()
+
+      if (response.ok) {
+        setCloudImages(data.images || {})
+      } else {
+        console.error("Failed to load cloud images:", data.error)
+        // Don't show error to users, just log it
+        setCloudImages({})
+      }
+    } catch (error) {
+      console.error("Failed to load cloud images:", error)
+      // Gracefully handle the error - users can still use the app
+      setCloudImages({})
+    } finally {
+      setIsLoadingImages(false)
+    }
+  }
 
   const progress = (Object.keys(ratings).length / officialsToRate.length) * 100
 
@@ -277,6 +314,16 @@ export default function Component() {
               Manage Photos
             </Button>
           </div>
+
+          {/* Cloud Status Indicator */}
+          {!isLoadingImages && Object.keys(cloudImages).length > 0 && (
+            <div className="fixed top-4 left-4 z-40">
+              <div className="bg-green-100 text-green-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+                <Cloud className="w-4 h-4" />
+                <span>{Object.keys(cloudImages).length} cloud images loaded</span>
+              </div>
+            </div>
+          )}
 
           {/* Creative Hero Section */}
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-green-600 to-green-700 text-white mb-16">
@@ -374,31 +421,45 @@ export default function Component() {
 
           {/* Officials Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-            {filteredOfficials.map((official) => (
-              <Card
-                key={official.id}
-                className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer group border-2 border-transparent hover:border-green-200"
-              >
-                <CardHeader className="text-center pb-2">
-                  <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-gray-200 overflow-hidden group-hover:ring-4 group-hover:ring-green-100 transition-all">
-                    <img
-                      src={official.image || "/placeholder.svg"}
-                      alt={official.fullName}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.src = "/placeholder.svg?height=80&width=80"
-                      }}
-                    />
-                  </div>
-                  <Badge variant="secondary" className="mb-2">
-                    {official.category}
-                  </Badge>
-                  <CardTitle className="text-lg">{official.name}</CardTitle>
-                  <CardDescription className="text-sm">{official.fullName}</CardDescription>
-                </CardHeader>
-              </Card>
-            ))}
+            {filteredOfficials.map((official) => {
+              const hasCloudImage = cloudImages[official.id]
+
+              return (
+                <Card
+                  key={official.id}
+                  className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer group border-2 border-transparent hover:border-green-200"
+                >
+                  <CardHeader className="text-center pb-2">
+                    <div className="relative w-20 h-20 mx-auto mb-3 rounded-full bg-gray-200 overflow-hidden group-hover:ring-4 group-hover:ring-green-100 transition-all">
+                      <img
+                        src={official.image || "/placeholder.svg"}
+                        alt={official.fullName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.src = "/placeholder.svg?height=80&width=80"
+                        }}
+                      />
+                      {hasCloudImage && (
+                        <div className="absolute top-0 right-0 bg-green-500 text-white p-1 rounded-full">
+                          <Cloud className="w-2 h-2" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Badge variant="secondary">{official.category}</Badge>
+                      {hasCloudImage && (
+                        <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                          Cloud
+                        </Badge>
+                      )}
+                    </div>
+                    <CardTitle className="text-lg">{official.name}</CardTitle>
+                    <CardDescription className="text-sm">{official.fullName}</CardDescription>
+                  </CardHeader>
+                </Card>
+              )
+            })}
           </div>
 
           {/* Start Button */}
