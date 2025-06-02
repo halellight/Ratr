@@ -1,203 +1,154 @@
 import { NextResponse } from "next/server"
 
-/**
- * Real Analytics API Endpoint v18
- *
- * This endpoint supports real-time analytics with actual user data only:
- * 1. No dummy data or simulation
- * 2. Starts with zero data, builds from real interactions
- * 3. Conditional requests using timestamps to minimize data transfer
- * 4. POST support for tracking share events
- * 5. Proper HTTP status codes (304 for no changes)
- * 6. Error handling and validation
- * 7. Velocity tracking and trend analysis
- */
+const VALID_PLATFORMS = ["twitter", "facebook", "whatsapp", "copy", "native", "other"]
 
-// In-memory cache for real analytics data
-// In production, this would be replaced with a proper database
+// In-memory cache (replace with DB in production)
 const analyticsCache = {
   lastUpdated: new Date().toISOString(),
-  data: [
-    { platform: "twitter", count: 0, lastShared: "", trend: "stable", velocity: 0 },
-    { platform: "facebook", count: 0, lastShared: "", trend: "stable", velocity: 0 },
-    { platform: "whatsapp", count: 0, lastShared: "", trend: "stable", velocity: 0 },
-    { platform: "copy", count: 0, lastShared: "", trend: "stable", velocity: 0 },
-    { platform: "native", count: 0, lastShared: "", trend: "stable", velocity: 0 },
-    { platform: "other", count: 0, lastShared: "", trend: "stable", velocity: 0 },
-  ],
-  velocityTracker: new Map(),
+  data: VALID_PLATFORMS.map((platform) => ({
+    platform,
+    count: 0,
+    lastShared: "",
+    trend: "stable",
+    velocity: 0,
+  })),
+  velocityTracker: new Map<string, number[]>(),
 }
 
-// Remove all simulation code - no dummy data generation
-
-/**
- * GET /api/analytics
- *
- * Supports conditional requests using the 'since' query parameter
- * Returns 304 Not Modified if no updates since the provided timestamp
- */
+// GET /api/analytics
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url)
-    const since = url.searchParams.get("since")
+    const sinceParam = url.searchParams.get("since")
+    const clientTimestamp = sinceParam ? new Date(sinceParam) : null
+    const serverTimestamp = new Date(analyticsCache.lastUpdated)
 
-    console.log(`📊 Analytics GET request, since: ${since}`)
+    console.log(`📡 GET /api/analytics | since: ${sinceParam}`)
 
-    // If client provides a timestamp and no updates since then, return 304 Not Modified
-    if (since && new Date(since) >= new Date(analyticsCache.lastUpdated)) {
-      console.log("📊 Returning 304 Not Modified - no new data")
+    if (clientTimestamp && clientTimestamp >= serverTimestamp) {
+      console.log("✅ 304 Not Modified — No new data since last request.")
       return new Response(null, {
         status: 304,
         headers: {
-          "Cache-Control": "no-cache, must-revalidate",
+          "Cache-Control": "no-cache",
           "Last-Modified": analyticsCache.lastUpdated,
           ETag: `"${analyticsCache.lastUpdated}"`,
         },
       })
     }
 
-    // Return current data (starts at zero, builds from real interactions)
-    const response = {
-      success: true,
-      data: analyticsCache.data,
-      lastUpdated: analyticsCache.lastUpdated,
-      serverTime: new Date().toISOString(),
-      version: "18",
-    }
-
-    console.log(`📊 Returning real analytics data: ${analyticsCache.data.length} platforms`)
-
-    return NextResponse.json(response, {
-      headers: {
-        "Cache-Control": "no-cache, must-revalidate",
-        "Last-Modified": analyticsCache.lastUpdated,
-        ETag: `"${analyticsCache.lastUpdated}"`,
+    return NextResponse.json(
+      {
+        success: true,
+        data: analyticsCache.data,
+        lastUpdated: analyticsCache.lastUpdated,
+        serverTime: new Date().toISOString(),
+        version: "19",
       },
-    })
+      {
+        headers: {
+          "Cache-Control": "no-cache",
+          "Last-Modified": analyticsCache.lastUpdated,
+          ETag: `"${analyticsCache.lastUpdated}"`,
+        },
+      }
+    )
   } catch (error) {
-    console.error("❌ Error fetching analytics:", error)
+    console.error("❌ Error during GET /api/analytics:", error)
     return NextResponse.json(
       {
         success: false,
         error: "Failed to fetch analytics data",
         details: error instanceof Error ? error.message : "Unknown error",
-        version: "18",
+        version: "19",
       },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }
 
-/**
- * POST /api/analytics
- *
- * Track a real share event and update analytics data
- * Only updates when users actually share content
- */
+// POST /api/analytics
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    const { platform } = body
+    const { platform } = await request.json()
 
-    console.log(`📊 Tracking REAL share event: ${platform}`)
+    console.log(`🚀 POST /api/analytics | platform: ${platform}`)
 
-    // Validate platform parameter
-    const validPlatforms = ["twitter", "facebook", "whatsapp", "copy", "native", "other"]
-    if (!platform || !validPlatforms.includes(platform)) {
+    if (!VALID_PLATFORMS.includes(platform)) {
       return NextResponse.json(
         {
           success: false,
           error: "Invalid platform",
-          validPlatforms,
-          version: "18",
+          validPlatforms: VALID_PLATFORMS,
+          version: "19",
         },
-        { status: 400 },
+        { status: 400 }
       )
     }
 
-    // Update the analytics data with real user interaction
-    const now = new Date().toISOString()
-    const nowTimestamp = Date.now()
+    const now = Date.now()
+    const isoNow = new Date(now).toISOString()
 
-    // Update velocity tracking for real shares
-    const platformVelocity = analyticsCache.velocityTracker.get(platform) || []
-    platformVelocity.push(nowTimestamp)
+    // Velocity tracking
+    const timestamps = analyticsCache.velocityTracker.get(platform) || []
+    timestamps.push(now)
 
-    // Keep only last hour for velocity calculation
-    const oneHourAgo = nowTimestamp - 60 * 60 * 1000
-    const recentActivity = platformVelocity.filter((ts: number) => ts > oneHourAgo)
-    analyticsCache.velocityTracker.set(platform, recentActivity)
+    const oneHourAgo = now - 60 * 60 * 1000
+    const recent = timestamps.filter((t) => t > oneHourAgo)
+    analyticsCache.velocityTracker.set(platform, recent)
 
-    // Calculate trend based on recent activity
-    const calculateTrend = (currentVelocity: number, previousCount: number): string => {
-      if (currentVelocity > 2) return "up" // More than 2 shares per hour = trending up
-      if (currentVelocity === 0 && previousCount > 0) return "down" // No recent activity
+    // Trend calculation
+    const calcTrend = (velocity: number, prevCount: number): string => {
+      if (velocity > 2) return "up"
+      if (velocity === 0 && prevCount > 0) return "down"
       return "stable"
     }
 
-    analyticsCache.data = analyticsCache.data.map((item) => {
-      if (item.platform === platform) {
-        const newCount = item.count + 1
-        const newVelocity = recentActivity.length
-        const newTrend = calculateTrend(newVelocity, item.count)
+    analyticsCache.data = analyticsCache.data.map((item) =>
+      item.platform === platform
+        ? {
+            ...item,
+            count: item.count + 1,
+            lastShared: isoNow,
+            velocity: recent.length,
+            trend: calcTrend(recent.length, item.count),
+          }
+        : item
+    )
 
-        return {
-          ...item,
-          count: newCount,
-          lastShared: now,
-          trend: newTrend,
-          velocity: newVelocity,
-        }
-      }
-      return item
-    })
+    analyticsCache.lastUpdated = isoNow
 
-    analyticsCache.lastUpdated = now
-
-    // Log the real share event
-    console.log(`✅ REAL share tracked: ${platform} at ${now} (velocity: ${recentActivity.length})`)
+    console.log(`✅ Share tracked | ${platform} | velocity: ${recent.length}`)
 
     return NextResponse.json({
       success: true,
+      message: `Tracked share on ${platform}`,
       data: analyticsCache.data,
       lastUpdated: analyticsCache.lastUpdated,
       serverTime: new Date().toISOString(),
-      message: `Real share tracked for ${platform}`,
-      version: "18",
+      version: "19",
     })
   } catch (error) {
-    console.error("❌ Error updating analytics:", error)
+    console.error("❌ Error during POST /api/analytics:", error)
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to update analytics data",
+        error: "Failed to record share event",
         details: error instanceof Error ? error.message : "Unknown error",
-        version: "18",
+        version: "19",
       },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }
 
-/**
- * DELETE /api/analytics
- *
- * Reset analytics data (admin only)
- * Useful for testing or data cleanup
- */
+// DELETE /api/analytics
 export async function DELETE(request: Request) {
   try {
-    console.log("🗑️ Resetting analytics data to zero")
+    console.log("🧹 DELETE /api/analytics | Resetting all analytics")
 
-    // Check for admin authentication in production
-    // const authHeader = request.headers.get('authorization')
-    // if (!isValidAdminToken(authHeader)) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    // }
-
-    // Reset all data to zero
-    analyticsCache.data = analyticsCache.data.map((item) => ({
-      ...item,
+    analyticsCache.data = VALID_PLATFORMS.map((platform) => ({
+      platform,
       count: 0,
       lastShared: "",
       trend: "stable",
@@ -207,23 +158,21 @@ export async function DELETE(request: Request) {
     analyticsCache.velocityTracker.clear()
     analyticsCache.lastUpdated = new Date().toISOString()
 
-    console.log("✅ Analytics data reset to zero - ready for real user interactions")
-
     return NextResponse.json({
       success: true,
-      message: "Analytics data reset to zero",
+      message: "Analytics reset to zero",
       lastUpdated: analyticsCache.lastUpdated,
-      version: "18",
+      version: "19",
     })
   } catch (error) {
-    console.error("❌ Error resetting analytics:", error)
+    console.error("❌ Error during DELETE /api/analytics:", error)
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to reset analytics data",
-        version: "18",
+        error: "Failed to reset analytics",
+        version: "19",
       },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }

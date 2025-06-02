@@ -287,7 +287,7 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                   {/* Footer */}
                   <div className="flex items-center justify-between text-green-100 mt-8">
                     <p className="text-lg">Generated on {new Date().toLocaleDateString()} • #RateYourLeaders</p>
-                    <p className="text-lg font-medium">RateYourLeaders.ng</p>
+                    <p className="text-lg font-medium">ratedem.vercel.app</p>
                   </div>
                 </div>
               </div>
