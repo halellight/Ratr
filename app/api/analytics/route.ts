@@ -1,178 +1,94 @@
-import { NextResponse } from "next/server"
+import { redis } from "@/lib/redis";
 
-const VALID_PLATFORMS = ["twitter", "facebook", "whatsapp", "copy", "native", "other"]
+const VALID_PLATFORMS = ["twitter", "facebook", "whatsapp", "copy", "native", "other"] as const;
+type Platform = (typeof VALID_PLATFORMS)[number];
+type ShareData = {
+  platform: Platform;
+  count: number;
+  lastShared: string;
+  trend: string;
+  velocity: number;
+};
 
-// In-memory cache (replace with DB in production)
-const analyticsCache = {
-  lastUpdated: new Date().toISOString(),
-  data: VALID_PLATFORMS.map((platform) => ({
-    platform,
+const ANALYTICS_KEY = "analytics:v19";
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const since = url.searchParams.get("since");
+
+  const analytics = await redis.get<{
+    data: ShareData[];
+    lastUpdated: string;
+    velocityTracker: Record<Platform, number[]>;
+  }>(ANALYTICS_KEY);
+
+  if (!analytics) {
+    return NextResponse.json({ success: true, data: [], lastUpdated: new Date().toISOString(), version: "19" });
+  }
+
+  if (since && new Date(since) >= new Date(analytics.lastUpdated)) {
+    return new Response(null, { status: 304 });
+  }
+
+  return NextResponse.json({
+    success: true,
+    data: analytics.data,
+    lastUpdated: analytics.lastUpdated,
+    serverTime: new Date().toISOString(),
+    version: "19",
+  });
+}
+
+export async function POST(request: Request) {
+  const { platform }: { platform: Platform } = await request.json();
+  if (!VALID_PLATFORMS.includes(platform)) {
+    return NextResponse.json({ success: false, error: "Invalid platform" }, { status: 400 });
+  }
+
+  const now = Date.now();
+  const isoNow = new Date(now).toISOString();
+  const oneHourAgo = now - 60 * 60 * 1000;
+
+  const snapshot = await redis.get<any>(ANALYTICS_KEY);
+  const velocityTracker = snapshot?.velocityTracker || {};
+  const timestamps: number[] = [...(velocityTracker[platform] || []), now];
+  const recent = timestamps.filter(t => t > oneHourAgo);
+  velocityTracker[platform] = recent;
+
+  let data: ShareData[] = snapshot?.data || VALID_PLATFORMS.map(p => ({
+    platform: p,
     count: 0,
     lastShared: "",
     trend: "stable",
     velocity: 0,
-  })),
-  velocityTracker: new Map<string, number[]>(),
+  }));
+
+  data = data.map(item =>
+    item.platform === platform
+      ? {
+          ...item,
+          count: item.count + 1,
+          lastShared: isoNow,
+          velocity: recent.length,
+          trend: recent.length > 2 ? "up" : recent.length === 0 && item.count > 0 ? "down" : "stable",
+        }
+      : item
+  );
+
+  const newSnapshot = {
+    data,
+    lastUpdated: isoNow,
+    velocityTracker,
+  };
+
+  await redis.set(ANALYTICS_KEY, newSnapshot);
+
+  return NextResponse.json({
+    success: true,
+    message: "Tracked share",
+    data,
+    lastUpdated: isoNow,
+    version: "19",
+  });
 }
-
-// GET /api/analytics
-export async function GET(request: Request) {
-  try {
-    const url = new URL(request.url)
-    const sinceParam = url.searchParams.get("since")
-    const clientTimestamp = sinceParam ? new Date(sinceParam) : null
-    const serverTimestamp = new Date(analyticsCache.lastUpdated)
-
-    console.log(`📡 GET /api/analytics | since: ${sinceParam}`)
-
-    if (clientTimestamp && clientTimestamp >= serverTimestamp) {
-      console.log("✅ 304 Not Modified — No new data since last request.")
-      return new Response(null, {
-        status: 304,
-        headers: {
-          "Cache-Control": "no-cache",
-          "Last-Modified": analyticsCache.lastUpdated,
-          ETag: `"${analyticsCache.lastUpdated}"`,
-        },
-      })
-    }
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: analyticsCache.data,
-        lastUpdated: analyticsCache.lastUpdated,
-        serverTime: new Date().toISOString(),
-        version: "19",
-      },
-      {
-        headers: {
-          "Cache-Control": "no-cache",
-          "Last-Modified": analyticsCache.lastUpdated,
-          ETag: `"${analyticsCache.lastUpdated}"`,
-        },
-      }
-    )
-  } catch (error) {
-    console.error("❌ Error during GET /api/analytics:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to fetch analytics data",
-        details: error instanceof Error ? error.message : "Unknown error",
-        version: "19",
-      },
-      { status: 500 }
-    )
-  }
-}
-
-// POST /api/analytics
-export async function POST(request: Request) {
-  try {
-    const { platform } = await request.json()
-
-    console.log(`🚀 POST /api/analytics | platform: ${platform}`)
-
-    if (!VALID_PLATFORMS.includes(platform)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid platform",
-          validPlatforms: VALID_PLATFORMS,
-          version: "19",
-        },
-        { status: 400 }
-      )
-    }
-
-    const now = Date.now()
-    const isoNow = new Date(now).toISOString()
-
-    // Velocity tracking
-    const timestamps = analyticsCache.velocityTracker.get(platform) || []
-    timestamps.push(now)
-
-    const oneHourAgo = now - 60 * 60 * 1000
-    const recent = timestamps.filter((t) => t > oneHourAgo)
-    analyticsCache.velocityTracker.set(platform, recent)
-
-    // Trend calculation
-    const calcTrend = (velocity: number, prevCount: number): string => {
-      if (velocity > 2) return "up"
-      if (velocity === 0 && prevCount > 0) return "down"
-      return "stable"
-    }
-
-    analyticsCache.data = analyticsCache.data.map((item) =>
-      item.platform === platform
-        ? {
-            ...item,
-            count: item.count + 1,
-            lastShared: isoNow,
-            velocity: recent.length,
-            trend: calcTrend(recent.length, item.count),
-          }
-        : item
-    )
-
-    analyticsCache.lastUpdated = isoNow
-
-    console.log(`✅ Share tracked | ${platform} | velocity: ${recent.length}`)
-
-    return NextResponse.json({
-      success: true,
-      message: `Tracked share on ${platform}`,
-      data: analyticsCache.data,
-      lastUpdated: analyticsCache.lastUpdated,
-      serverTime: new Date().toISOString(),
-      version: "19",
-    })
-  } catch (error) {
-    console.error("❌ Error during POST /api/analytics:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to record share event",
-        details: error instanceof Error ? error.message : "Unknown error",
-        version: "19",
-      },
-      { status: 500 }
-    )
-  }
-}
-
-// DELETE /api/analytics
-export async function DELETE(request: Request) {
-  try {
-    console.log("🧹 DELETE /api/analytics | Resetting all analytics")
-
-    analyticsCache.data = VALID_PLATFORMS.map((platform) => ({
-      platform,
-      count: 0,
-      lastShared: "",
-      trend: "stable",
-      velocity: 0,
-    }))
-
-    analyticsCache.velocityTracker.clear()
-    analyticsCache.lastUpdated = new Date().toISOString()
-
-    return NextResponse.json({
-      success: true,
-      message: "Analytics reset to zero",
-      lastUpdated: analyticsCache.lastUpdated,
-      version: "19",
-    })
-  } catch (error) {
-    console.error("❌ Error during DELETE /api/analytics:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to reset analytics",
-        version: "19",
-      },
-      { status: 500 }
-    )
-  }
-}
+import { NextResponse } from "next/server";
