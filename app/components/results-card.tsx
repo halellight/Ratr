@@ -1,24 +1,14 @@
 "use client"
 
-import { useRef, useState, useEffect } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Download,
-  RotateCcw,
-  Eye,
-  Share2,
-  Twitter,
-  Facebook,
-  MessageCircle,
-  Copy,
-  Check,
-  BarChart3,
-  Loader2,
-} from "lucide-react"
+import { Download, RotateCcw, Eye, Share2, Twitter, Facebook, MessageCircle, Copy, Check, BarChart3, Loader2 } from 'lucide-react'
 import html2canvas from "html2canvas"
 import { SocialPreview } from "./social-preview"
 import { ShareAnalytics } from "./share-analytics"
+import Link from "next/link"
+import { useShareTracking, useAnalyticsData } from "@/app/hooks/use-real-time-analytics"
 
 interface Official {
   id: string
@@ -35,75 +25,20 @@ interface ResultsCardProps {
   onRestart: () => void
 }
 
-// Define share platform types
-type SharePlatform = "twitter" | "facebook" | "whatsapp" | "copy" | "native" | "other"
-
-// Interface for share analytics data
-interface ShareData {
-  platform: SharePlatform
-  count: number
-  lastShared: string // ISO date string
-}
-
 export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [showAnalytics, setShowAnalytics] = useState(false)
   const [copied, setCopied] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [shareStats, setShareStats] = useState<ShareData[]>([])
   const [downloadProgress, setDownloadProgress] = useState(0)
+
+  // Use our enhanced analytics system
+  const { trackShare, isConnected } = useShareTracking()
+  const { totalShares, mostPopular, data: shareStats } = useAnalyticsData()
 
   const averageRating = Object.values(ratings).reduce((sum, rating) => sum + rating, 0) / Object.values(ratings).length
   const totalRatings = Object.values(ratings).length
-
-  // Load share statistics from localStorage on component mount
-  useEffect(() => {
-    const savedStats = localStorage.getItem("rateYourLeadersShareStats")
-    if (savedStats) {
-      try {
-        setShareStats(JSON.parse(savedStats))
-      } catch (e) {
-        console.error("Error parsing share stats:", e)
-        // Initialize with empty stats if parsing fails
-        initializeShareStats()
-      }
-    } else {
-      // Initialize with empty stats if none exist
-      initializeShareStats()
-    }
-  }, [])
-
-  // Initialize share statistics with zero counts
-  const initializeShareStats = () => {
-    const initialStats: ShareData[] = [
-      { platform: "twitter", count: 0, lastShared: "" },
-      { platform: "facebook", count: 0, lastShared: "" },
-      { platform: "whatsapp", count: 0, lastShared: "" },
-      { platform: "copy", count: 0, lastShared: "" },
-      { platform: "native", count: 0, lastShared: "" },
-      { platform: "other", count: 0, lastShared: "" },
-    ]
-    setShareStats(initialStats)
-    localStorage.setItem("rateYourLeadersShareStats", JSON.stringify(initialStats))
-  }
-
-  // Track share event
-  const trackShare = (platform: SharePlatform) => {
-    const now = new Date().toISOString()
-    const updatedStats = shareStats.map((stat) => {
-      if (stat.platform === platform) {
-        return {
-          ...stat,
-          count: stat.count + 1,
-          lastShared: now,
-        }
-      }
-      return stat
-    })
-    setShareStats(updatedStats)
-    localStorage.setItem("rateYourLeadersShareStats", JSON.stringify(updatedStats))
-  }
 
   const getRatingColor = (rating: number) => {
     if (rating >= 4) return "text-green-500"
@@ -182,27 +117,27 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
     try {
       await navigator.clipboard.writeText(shareText)
       setCopied(true)
-      trackShare("copy")
+      await trackShare("copy")
       setTimeout(() => setCopied(false), 2000)
     } catch (error) {
       console.error("Failed to copy:", error)
     }
   }
 
-  const shareToTwitter = () => {
-    trackShare("twitter")
+  const shareToTwitter = async () => {
+    await trackShare("twitter")
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
     window.open(twitterUrl, "_blank", "width=600,height=400")
   }
 
-  const shareToFacebook = () => {
-    trackShare("facebook")
+  const shareToFacebook = async () => {
+    await trackShare("facebook")
     const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareText)}`
     window.open(facebookUrl, "_blank", "width=600,height=400")
   }
 
-  const shareToWhatsApp = () => {
-    trackShare("whatsapp")
+  const shareToWhatsApp = async () => {
+    await trackShare("whatsapp")
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText + " " + shareUrl)}`
     window.open(whatsappUrl, "_blank")
   }
@@ -210,7 +145,7 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
   const shareNatively = async () => {
     if (navigator.share) {
       try {
-        trackShare("native")
+        await trackShare("native")
         await navigator.share({
           title: "My Nigeria Cabinet Rating",
           text: shareText,
@@ -224,9 +159,6 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
       copyToClipboard()
     }
   }
-
-  // Calculate total shares
-  const totalShares = shareStats.reduce((sum, stat) => sum + stat.count, 0)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50 py-8">
@@ -416,15 +348,12 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
             <div className="bg-white rounded-2xl shadow-lg border p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-gray-900">Share Your Rating</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowAnalytics(true)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <BarChart3 className="w-5 h-5 mr-2" />
-                  Share Stats
-                </Button>
+                <Link href="/analytics" passHref>
+                  <Button variant="ghost" size="sm" className="text-gray-500 hover:text-gray-700">
+                    <BarChart3 className="w-5 h-5 mr-2" />
+                    Live Analytics
+                  </Button>
+                </Link>
               </div>
               <p className="text-gray-600 text-center mb-6">Let others know your opinion about Nigeria's leadership</p>
 
@@ -469,15 +398,24 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                 </Button>
               </div>
 
-              {/* Share statistics summary */}
+              {/* Real-time Share Statistics */}
               {totalShares > 0 && (
                 <div className="mt-4 text-center">
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">{totalShares}</span> shares so far • Most popular:{" "}
-                    <span className="font-medium">
-                      {shareStats.reduce((max, stat) => (stat.count > max.count ? stat : max), shareStats[0]).platform}
-                    </span>
-                  </p>
+                  <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+                    <span className="font-medium">{totalShares.toLocaleString()}</span> shares so far
+                    {mostPopular && (
+                      <>
+                        <span>•</span>
+                        <span>Most popular: <span className="font-medium">{mostPopular}</span></span>
+                      </>
+                    )}
+                    {!isConnected && (
+                      <>
+                        <span>•</span>
+                        <span className="text-orange-600">Offline mode</span>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -526,8 +464,8 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
           />
         )}
 
-        {/* Share Analytics Modal */}
-        {showAnalytics && <ShareAnalytics shareStats={shareStats} onClose={() => setShowAnalytics(false)} />}
+        {/* Share Analytics Modal - Kept for backward compatibility */}
+        {showAnalytics && <ShareAnalytics shareStats={shareStats || []} onClose={() => setShowAnalytics(false)} />}
       </div>
     </div>
   )
