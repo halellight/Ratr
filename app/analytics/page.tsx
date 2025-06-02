@@ -18,9 +18,11 @@ import {
   Zap,
   Activity,
   Share2,
+  Users,
 } from "lucide-react"
 import { useRealTimeAnalytics } from "@/app/hooks/use-real-time-analytics"
 import Link from "next/link"
+import { getAllBiographies } from "@/app/data/leader-biographies"
 
 /**
  * Real Analytics Dashboard v18 - Real Data Only
@@ -40,9 +42,9 @@ const AnalyticsPage = () => {
   const [timeRange, setTimeRange] = useState<"all" | "week" | "month">("all")
 
   // Use our enhanced analytics hook
-  const { snapshot, isLoading, error, hasNewData, isConnected, refresh, getSummary } = useRealTimeAnalytics({
-    onUpdate: (newSnapshot) => {
-      console.log("📊 Analytics dashboard updated:", newSnapshot.metadata)
+  const { data, isLoading, error, hasNewData, isConnected, refresh } = useRealTimeAnalytics({
+    onUpdate: (newData) => {
+      console.log("📊 Analytics dashboard updated:", newData)
     },
     onError: (error) => {
       console.error("📊 Analytics dashboard error:", error)
@@ -50,7 +52,7 @@ const AnalyticsPage = () => {
   })
 
   // Get analytics summary
-  const summary = getSummary()
+  const summary = data?.summary
 
   // Format platform names for display
   const formatPlatformName = (platform: string) => {
@@ -117,7 +119,7 @@ const AnalyticsPage = () => {
 
   // Filter stats based on time range
   const filteredStats =
-    snapshot?.data.filter((stat) => {
+    data?.snapshot.data.filter((stat) => {
       if (timeRange === "all" || !stat.lastShared) return true
 
       const lastShared = new Date(stat.lastShared)
@@ -154,10 +156,10 @@ const AnalyticsPage = () => {
 
   // Export data as CSV
   const exportCSV = () => {
-    if (!snapshot) return
+    if (!data?.snapshot) return
 
     const headers = ["Platform", "Shares", "Last Shared", "Trend", "Velocity (per hour)"]
-    const rows = snapshot.data.map((stat) => [
+    const rows = data.snapshot.data.map((stat) => [
       formatPlatformName(stat.platform),
       stat.count.toString(),
       stat.lastShared ? formatDate(stat.lastShared) : "Never",
@@ -200,7 +202,7 @@ const AnalyticsPage = () => {
           </div>
 
           {/* Last Updated */}
-          {snapshot?.lastUpdated && (
+          {data?.snapshot.lastUpdated && (
             <div
               className={`flex items-center gap-2 text-sm ${
                 hasNewData ? "text-green-600 animate-pulse" : "text-gray-500"
@@ -208,7 +210,7 @@ const AnalyticsPage = () => {
             >
               <Clock className="w-4 h-4" />
               <span>
-                {hasNewData ? "Just updated!" : "Last updated:"} {formatDate(snapshot.lastUpdated)}
+                {hasNewData ? "Just updated!" : "Last updated:"} {formatDate(data.snapshot.lastUpdated)}
               </span>
               {hasNewData && <Badge className="bg-green-500 text-white">Live</Badge>}
             </div>
@@ -216,7 +218,7 @@ const AnalyticsPage = () => {
 
           {/* Version Info */}
           <div className="text-xs text-gray-400">
-            v{snapshot?.metadata.version} • Updates: {snapshot?.metadata.updateCount || 0} • Real Data Only
+            v{data?.snapshot.metadata.version} • Updates: {data?.snapshot.metadata.updateCount || 0} • Real Data Only
           </div>
         </div>
       </div>
@@ -264,7 +266,7 @@ const AnalyticsPage = () => {
         </div>
 
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportCSV} disabled={!snapshot}>
+          <Button variant="outline" size="sm" onClick={exportCSV} disabled={!data?.snapshot}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -334,10 +336,10 @@ const AnalyticsPage = () => {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {summary.trending.length > 0 ? formatPlatformName(summary.trending[0]) : "None yet"}
+                  {summary?.trending.length > 0 ? formatPlatformName(summary.trending[0]) : "None yet"}
                 </div>
                 <p className="text-sm text-gray-500 mt-2">
-                  {summary.trending.length > 0
+                  {summary?.trending.length > 0
                     ? `${summary.trending.length} platform${summary.trending.length > 1 ? "s" : ""} trending`
                     : "No trending activity yet"}
                 </p>
@@ -359,7 +361,7 @@ const AnalyticsPage = () => {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {snapshot?.data.reduce((sum, stat) => sum + (stat.velocity || 0), 0) || 0}
+                  {data?.snapshot.data.reduce((sum, stat) => sum + (stat.velocity || 0), 0) || 0}
                 </div>
                 <p className="text-sm text-gray-500 mt-2">Shares per hour</p>
               </>
@@ -441,6 +443,74 @@ const AnalyticsPage = () => {
               ))
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Leader Analytics Section */}
+      <Card className={`mb-8 ${hasNewData ? "border-green-500" : ""} transition-all duration-300`}>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Leader Performance Analytics</span>
+            <Badge variant="outline" className="text-blue-600 border-blue-600">
+              Real-Time Data
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {data?.leaderRatings && Object.keys(data.leaderRatings).length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Object.entries(data.leaderRatings)
+                .sort(([, a], [, b]) => b.averageRating - a.averageRating)
+                .slice(0, 6)
+                .map(([officialId, rating]) => {
+                  const biography = getAllBiographies().find((bio) => bio.id === officialId)
+                  return (
+                    <Card key={officialId} className="border-2 hover:border-green-200 transition-colors">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-lg">{biography?.fullName || officialId}</CardTitle>
+                          <Badge variant={rating.performanceMetrics.trendsUp ? "default" : "secondary"}>
+                            {rating.performanceMetrics.trendsUp ? "↗" : "↘"} {rating.performanceMetrics.approvalRating}%
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600">{biography?.position}</p>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Average Rating</span>
+                            <span className="text-2xl font-bold text-green-600">
+                              {rating.averageRating.toFixed(1)}/5
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Total Ratings</span>
+                            <span className="font-semibold">{rating.totalRatings.toLocaleString()}</span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-2">
+                            <div
+                              className="bg-green-500 h-2 rounded-full transition-all duration-500"
+                              style={{ width: `${(rating.averageRating / 5) * 100}%` }}
+                            ></div>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Last updated: {new Date(rating.lastUpdated).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <Users className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-500 text-lg">No leader ratings yet</p>
+              <p className="text-gray-400 text-sm mt-2">
+                Start rating leaders to see their performance analytics here!
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -1,254 +1,270 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { analyticsService, type AnalyticsSnapshot, type SharePlatform } from "@/app/services/analytics-service"
 
-/**
- * Enhanced Real-Time Analytics Hook v18
- *
- * This hook provides a React-friendly interface to the analytics service
- * with additional features like:
- * - Automatic subscription management
- * - Loading states
- * - Error handling
- * - Performance optimizations
- * - Velocity tracking
- * - Trend analysis
- */
+export type SharePlatform = "twitter" | "facebook" | "whatsapp" | "copy" | "native" | "other"
+
+export interface LeaderRating {
+  officialId: string
+  averageRating: number
+  totalRatings: number
+  ratingDistribution: Record<number, number>
+  lastUpdated: string
+  performanceMetrics: {
+    approvalRating: number
+    trendsUp: boolean
+    monthlyChange: number
+  }
+}
+
+export interface ShareAnalytics {
+  platform: string
+  count: number
+  lastShared: string
+  trend: "up" | "down" | "stable"
+  velocity: number
+}
+
+export interface RealTimeAnalytics {
+  totalRatings: number
+  totalShares: number
+  leaderRatings: Record<string, LeaderRating>
+  shareAnalytics: ShareAnalytics[]
+  lastUpdated: string
+  activeUsers: number
+}
 
 interface UseRealTimeAnalyticsOptions {
   autoStart?: boolean
   pollingInterval?: number
-  onUpdate?: (snapshot: AnalyticsSnapshot) => void
+  onUpdate?: (data: RealTimeAnalytics) => void
   onError?: (error: Error) => void
-  enableVelocityTracking?: boolean
 }
 
-interface UseRealTimeAnalyticsReturn {
-  snapshot: AnalyticsSnapshot | null
-  isLoading: boolean
-  error: string | null
-  hasNewData: boolean
-  isConnected: boolean
-  trackShare: (platform: SharePlatform) => Promise<void>
-  refresh: () => Promise<void>
-  startPolling: () => void
-  stopPolling: () => void
-  getSummary: () => ReturnType<typeof analyticsService.getSummary>
-}
+export function useRealTimeAnalytics(options: UseRealTimeAnalyticsOptions = {}) {
+  const { autoStart = true, pollingInterval = 5000, onUpdate, onError } = options
 
-export function useRealTimeAnalytics(options: UseRealTimeAnalyticsOptions = {}): UseRealTimeAnalyticsReturn {
-  const { 
-    autoStart = true, 
-    onUpdate, 
-    onError,
-    enableVelocityTracking = true 
-  } = options
-
-  const [snapshot, setSnapshot] = useState<AnalyticsSnapshot | null>(null)
+  const [data, setData] = useState<RealTimeAnalytics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [hasNewData, setHasNewData] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
+  const [hasNewData, setHasNewData] = useState(false)
 
-  // Use refs to track the latest values
-  const previousSnapshotRef = useRef<AnalyticsSnapshot | null>(null)
-  const newDataTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const lastUpdateRef = useRef<string | null>(null)
 
-  // Handle snapshot updates
-  const handleSnapshotUpdate = useCallback((newSnapshot: AnalyticsSnapshot) => {
-    const isNewData = previousSnapshotRef.current && 
-      newSnapshot.lastUpdated !== previousSnapshotRef.current.lastUpdated
+  const fetchAnalytics = useCallback(async () => {
+    try {
+      const response = await fetch("/api/analytics/real-time")
 
-    setSnapshot(newSnapshot)
-    setIsLoading(false)
-    setError(null)
-    setIsConnected(true)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
 
-    // Reset connection timeout
-    if (connectionTimeoutRef.current) {
-      clearTimeout(connectionTimeoutRef.current)
-    }
-    
-    // Set connection timeout (consider disconnected if no updates for 30 seconds)
-    connectionTimeoutRef.current = setTimeout(() => {
+      const result = await response.json()
+
+      if (result.success) {
+        const newData = result.data
+        setData(newData)
+        setIsConnected(true)
+        setError(null)
+
+        // Check if this is new data
+        const isNewUpdate = lastUpdateRef.current !== newData.lastUpdated
+        if (isNewUpdate && lastUpdateRef.current !== null) {
+          setHasNewData(true)
+          setTimeout(() => setHasNewData(false), 3000)
+        }
+
+        lastUpdateRef.current = newData.lastUpdated
+
+        if (onUpdate) {
+          onUpdate(newData)
+        }
+      } else {
+        throw new Error(result.error || "Failed to fetch analytics")
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error("Unknown error")
+      setError(error.message)
       setIsConnected(false)
-    }, 30000)
 
-    if (isNewData) {
-      setHasNewData(true)
-      console.log("📊 New analytics data received:", {
-        totalShares: newSnapshot.totalShares,
-        updateCount: newSnapshot.metadata.updateCount,
+      if (onError) {
+        onError(error)
+      }
+
+      console.error("❌ Analytics fetch error:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [onUpdate, onError])
+
+  const trackRating = useCallback(async (officialId: string, rating: number) => {
+    try {
+      const response = await fetch("/api/analytics/real-time", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": localStorage.getItem("userId") || `user_${Date.now()}`,
+        },
+        body: JSON.stringify({
+          type: "rating",
+          data: { officialId, rating },
+        }),
       })
 
-      // Clear previous timeout
-      if (newDataTimeoutRef.current) {
-        clearTimeout(newDataTimeoutRef.current)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      // Reset new data indicator after 3 seconds
-      newDataTimeoutRef.current = setTimeout(() => {
-        setHasNewData(false)
-      }, 3000)
-    }
+      const result = await response.json()
 
-    previousSnapshotRef.current = newSnapshot
+      if (result.success) {
+        setData(result.data)
+        setHasNewData(true)
+        setTimeout(() => setHasNewData(false), 3000)
 
-    // Call update callback if provided
-    if (onUpdate) {
-      onUpdate(newSnapshot)
-    }
-  }, [onUpdate])
-
-  // Track share with error handling and optimistic updates
-  const trackShare = useCallback(async (platform: SharePlatform): Promise<void> => {
-    try {
-      console.log(`📊 Tracking share: ${platform}`)
-      await analyticsService.trackShare(platform)
+        console.log(`✅ Rating tracked: ${officialId} = ${rating}/5`)
+      } else {
+        throw new Error(result.error || "Failed to track rating")
+      }
     } catch (err) {
-      const error = err instanceof Error ? err : new Error("Failed to track share")
-      setError(error.message)
-      console.error("❌ Share tracking failed:", error)
-
-      if (onError) {
-        onError(error)
-      }
-
-      // Clear error after 5 seconds
-      setTimeout(() => {
-        setError(null)
-      }, 5000)
+      const error = err instanceof Error ? err : new Error("Unknown error")
+      console.error("❌ Rating tracking error:", error)
+      throw error
     }
-  }, [onError])
+  }, [])
 
-  // Refresh data
-  const refresh = useCallback(async (): Promise<void> => {
+  const trackShare = useCallback(async (platform: SharePlatform) => {
     try {
-      setIsLoading(true)
-      setError(null)
-      await analyticsService.refresh()
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error("Failed to refresh data")
-      setError(error.message)
-      setIsLoading(false)
+      const response = await fetch("/api/analytics/real-time", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": localStorage.getItem("userId") || `user_${Date.now()}`,
+        },
+        body: JSON.stringify({
+          type: "share",
+          data: { platform },
+        }),
+      })
 
-      if (onError) {
-        onError(error)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
+
+      const result = await response.json()
+
+      if (result.success) {
+        setData(result.data)
+        setHasNewData(true)
+        setTimeout(() => setHasNewData(false), 3000)
+
+        console.log(`📊 Share tracked: ${platform}`)
+      } else {
+        throw new Error(result.error || "Failed to track share")
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error("Unknown error")
+      console.error("❌ Share tracking error:", error)
+      throw error
     }
-  }, [onError])
-
-  // Start polling
-  const startPolling = useCallback((): void => {
-    analyticsService.startPolling()
   }, [])
 
-  // Stop polling
-  const stopPolling = useCallback((): void => {
-    analyticsService.stopPolling()
+  const startPolling = useCallback(() => {
+    if (intervalRef.current) return
+
+    fetchAnalytics() // Initial fetch
+    intervalRef.current = setInterval(fetchAnalytics, pollingInterval)
+    console.log("🚀 Started real-time analytics polling")
+  }, [fetchAnalytics, pollingInterval])
+
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+      console.log("⏹️ Stopped real-time analytics polling")
+    }
   }, [])
 
-  // Get summary
-  const getSummary = useCallback(() => {
-    return analyticsService.getSummary()
-  }, [])
-
-  // Set up subscription and polling
   useEffect(() => {
-    console.log("📊 Setting up analytics subscription")
-    
-    // Subscribe to analytics updates
-    const unsubscribe = analyticsService.subscribe(handleSnapshotUpdate)
-
-    // Start polling if auto-start is enabled
     if (autoStart) {
-      analyticsService.startPolling()
+      startPolling()
     }
 
-    // Get initial data
-    const currentSnapshot = analyticsService.getCurrentSnapshot()
-    if (currentSnapshot) {
-      setSnapshot(currentSnapshot)
-      setIsLoading(false)
-      setIsConnected(true)
-      previousSnapshotRef.current = currentSnapshot
-    }
-
-    // Cleanup function
     return () => {
-      console.log("📊 Cleaning up analytics subscription")
-      unsubscribe()
-
-      if (newDataTimeoutRef.current) {
-        clearTimeout(newDataTimeoutRef.current)
-      }
-
-      if (connectionTimeoutRef.current) {
-        clearTimeout(connectionTimeoutRef.current)
-      }
-
-      // Only stop polling if we started it
-      if (autoStart) {
-        analyticsService.stopPolling()
-      }
+      stopPolling()
     }
-  }, [autoStart, handleSnapshotUpdate])
+  }, [autoStart, startPolling, stopPolling])
 
   return {
-    snapshot,
+    data,
     isLoading,
     error,
-    hasNewData,
     isConnected,
+    hasNewData,
+    trackRating,
     trackShare,
-    refresh,
+    refresh: fetchAnalytics,
     startPolling,
     stopPolling,
-    getSummary,
   }
 }
 
-/**
- * Simplified hook for basic analytics data
- */
+// Simplified hook for basic analytics data
 export function useAnalyticsData() {
-  const { snapshot, isLoading, error, isConnected } = useRealTimeAnalytics()
+  const { data, isLoading, error, isConnected } = useRealTimeAnalytics()
 
   return {
-    data: snapshot?.data || [],
-    totalShares: snapshot?.totalShares || 0,
-    mostPopular: snapshot?.mostPopular || null,
-    lastUpdated: snapshot?.lastUpdated || null,
+    totalRatings: data?.totalRatings || 0,
+    totalShares: data?.totalShares || 0,
+    leaderRatings: data?.leaderRatings || {},
+    shareAnalytics: data?.shareAnalytics || [],
+    activeUsers: data?.activeUsers || 0,
+    lastUpdated: data?.lastUpdated || null,
     isLoading,
     error,
     isConnected,
-    metadata: snapshot?.metadata,
   }
 }
 
-/**
- * Hook for tracking shares with analytics
- */
-export function useShareTracking() {
-  const { trackShare, isConnected } = useRealTimeAnalytics()
+// Hook for leader-specific analytics
+export function useLeaderAnalytics(officialId: string) {
+  const [data, setData] = useState<LeaderRating | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const trackShareWithFeedback = useCallback(async (platform: SharePlatform) => {
-    if (!isConnected) {
-      console.warn("⚠️ Analytics not connected, tracking locally only")
-    }
-    
-    await trackShare(platform)
-    
-    // Provide user feedback
-    if (typeof window !== 'undefined' && 'navigator' in window && 'vibrate' in navigator) {
-      navigator.vibrate(50) // Haptic feedback on mobile
-    }
-  }, [trackShare, isConnected])
+  useEffect(() => {
+    const fetchLeaderAnalytics = async () => {
+      try {
+        setIsLoading(true)
+        const response = await fetch(`/api/leaders/${officialId}/analytics`)
 
-  return {
-    trackShare: trackShareWithFeedback,
-    isConnected,
-  }
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+
+        const result = await response.json()
+
+        if (result.success) {
+          setData(result.data)
+          setError(null)
+        } else {
+          throw new Error(result.error || "Failed to fetch leader analytics")
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error("Unknown error")
+        setError(error.message)
+        console.error("❌ Leader analytics error:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (officialId) {
+      fetchLeaderAnalytics()
+    }
+  }, [officialId])
+
+  return { data, isLoading, error }
 }

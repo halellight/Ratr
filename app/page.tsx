@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Users, Award, Share2, ChevronRight, Settings, Cloud } from "lucide-react"
+import { Users, Award, Share2, ChevronRight, Settings, Cloud, BarChart3 } from "lucide-react"
 import { OfficialRating } from "./components/official-rating"
 import { ResultsCard } from "./components/results-card"
 import { AdminPanel } from "./components/admin-panel"
+import { useRealTimeAnalytics, useAnalyticsData } from "./hooks/use-real-time-analytics"
 
 const defaultOfficials = [
   {
@@ -234,6 +234,10 @@ export default function Component() {
   const [cloudImages, setCloudImages] = useState<Record<string, string>>({})
   const [isLoadingImages, setIsLoadingImages] = useState(true)
 
+  // Real-time analytics
+  const { trackRating } = useRealTimeAnalytics()
+  const { totalRatings, totalShares, activeUsers, isConnected } = useAnalyticsData()
+
   // Load officials data from localStorage and cloud images on component mount
   useEffect(() => {
     const savedOfficials = localStorage.getItem("officialsData")
@@ -270,12 +274,10 @@ export default function Component() {
         setCloudImages(data.images || {})
       } else {
         console.error("Failed to load cloud images:", data.error)
-        // Don't show error to users, just log it
         setCloudImages({})
       }
     } catch (error) {
       console.error("Failed to load cloud images:", error)
-      // Gracefully handle the error - users can still use the app
       setCloudImages({})
     } finally {
       setIsLoadingImages(false)
@@ -284,13 +286,35 @@ export default function Component() {
 
   const progress = (Object.keys(ratings).length / officialsToRate.length) * 100
 
-  const handleRating = (officialId: string, rating: number) => {
-    setRatings((prev) => ({ ...prev, [officialId]: rating }))
+  const handleRating = async (officialId: string, rating: number) => {
+    try {
+      // Track rating in real-time analytics
+      await trackRating(officialId, rating)
 
-    if (currentOfficialIndex < officialsToRate.length - 1) {
-      setCurrentOfficialIndex((prev) => prev + 1)
-    } else {
-      setCurrentStep("results")
+      // Update local state
+      setRatings((prev) => ({ ...prev, [officialId]: rating }))
+
+      if (currentOfficialIndex < officialsToRate.length - 1) {
+        setCurrentOfficialIndex((prev) => prev + 1)
+      } else {
+        setCurrentStep("results")
+      }
+    } catch (error) {
+      console.error("Failed to track rating:", error)
+      // Continue with local update even if tracking fails
+      setRatings((prev) => ({ ...prev, [officialId]: rating }))
+
+      if (currentOfficialIndex < officialsToRate.length - 1) {
+        setCurrentOfficialIndex((prev) => prev + 1)
+      } else {
+        setCurrentStep("results")
+      }
+    }
+  }
+
+  const handleBack = () => {
+    if (currentOfficialIndex > 0) {
+      setCurrentOfficialIndex((prev) => prev - 1)
     }
   }
 
@@ -315,15 +339,29 @@ export default function Component() {
             </Button>
           </div>
 
-          {/* Cloud Status Indicator */}
-          {/* {!isLoadingImages && Object.keys(cloudImages).length > 0 && (
-            <div className="fixed top-4 left-4 z-40">
-              <div className="bg-green-100 text-green-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
-                <Cloud className="w-4 h-4" />
-                <span>{Object.keys(cloudImages).length} cloud images loaded</span>
+          {/* Real-time Analytics Header */}
+          <div className="fixed top-4 left-4 z-40">
+            <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border">
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
+                  <span className="font-medium">{isConnected ? "Live" : "Offline"}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <BarChart3 className="w-4 h-4 text-blue-500" />
+                  <span>{totalRatings.toLocaleString()} ratings</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Share2 className="w-4 h-4 text-green-500" />
+                  <span>{totalShares.toLocaleString()} shares</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Users className="w-4 h-4 text-purple-500" />
+                  <span>{activeUsers} active</span>
+                </div>
               </div>
             </div>
-          )} */}
+          </div>
 
           {/* Creative Hero Section */}
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-green-600 to-green-700 text-white mb-16">
@@ -376,6 +414,32 @@ export default function Component() {
                     </div>
                     <h3 className="text-xl font-semibold mb-2">Share Results</h3>
                     <p className="text-green-50 text-sm">Download and share on your social media</p>
+                  </div>
+                </div>
+
+                {/* Real-time Community Stats */}
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-8">
+                  <h3 className="text-xl font-semibold mb-4">Live Community Activity</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold">{totalRatings.toLocaleString()}</div>
+                      <div className="text-green-100 text-sm">Total Ratings</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold">{totalShares.toLocaleString()}</div>
+                      <div className="text-green-100 text-sm">Shares</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold">{activeUsers}</div>
+                      <div className="text-green-100 text-sm">Active Users</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <div className={`w-3 h-3 rounded-full ${isConnected ? "bg-green-400" : "bg-red-400"}`} />
+                        <div className="text-3xl font-bold">{isConnected ? "LIVE" : "OFF"}</div>
+                      </div>
+                      <div className="text-green-100 text-sm">System Status</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -448,11 +512,6 @@ export default function Component() {
                     </div>
                     <div className="flex items-center justify-center gap-2 mb-2">
                       <Badge variant="secondary">{official.category}</Badge>
-                      {/* {hasCloudImage && (
-                        <Badge variant="outline" className="text-xs text-green-600 border-green-600">
-                          Cloud
-                        </Badge>
-                      )} */}
                     </div>
                     <CardTitle className="text-lg">{official.name}</CardTitle>
                     <CardDescription className="text-sm">{official.fullName}</CardDescription>
@@ -492,22 +551,13 @@ export default function Component() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50">
         <div className="container mx-auto px-4 py-8">
-          {/* Progress Header */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">Rating Progress</h2>
-              <span className="text-sm text-gray-600">
-                {Object.keys(ratings).length} of {officialsToRate.length} completed
-              </span>
-            </div>
-            <Progress value={progress} className="h-3" />
-          </div>
-
           <OfficialRating
             official={officialsToRate[currentOfficialIndex]}
             onRate={handleRating}
+            onBack={handleBack}
             currentIndex={currentOfficialIndex}
             totalCount={officialsToRate.length}
+            showBiography={true}
           />
         </div>
       </div>
