@@ -592,7 +592,7 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                   <h3 className="text-lg sm:text-xl font-bold text-gray-900">Share Your Rating</h3>
                 </div>
                 <div className="flex gap-2">
-                  <Link href="/analytics" passHref>
+                  <Link href="/analytics?from=results" passHref>
                     <Button variant="ghost" size="sm" className="text-gray-500 hover:text-gray-700 text-xs sm:text-sm">
                       <BarChart3 className="w-4 h-4 mr-1 sm:mr-2" />
                       Universal Analytics

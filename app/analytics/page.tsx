@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { useUniversalAnalytics, useUniversalAnalyticsData } from "@/app/services/universal-analytics"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { getAllLeaderBiographies } from "@/app/data/leader-biographies"
 
 /**
@@ -39,6 +40,10 @@ import { getAllLeaderBiographies } from "@/app/data/leader-biographies"
 const AnalyticsPage = () => {
   const [timeRange, setTimeRange] = useState<"all" | "week" | "month">("all")
 
+  // Add navigation logic
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const fromResults = searchParams.get("from") === "results"
   // Use the new universal analytics system for live data
   const { data, isLoading, error, hasNewData, isConnected, refresh, summary } = useUniversalAnalytics()
 
@@ -186,9 +191,13 @@ const AnalyticsPage = () => {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Link href="/" className="text-green-600 hover:text-green-700 text-sm">
-              ← Back to Rating
-            </Link>
+
+            <button
+              onClick={() => (fromResults ? router.back() : router.push("/"))}
+              className="text-green-600 hover:text-green-700 text-sm hover:underline"
+            >
+              ← {fromResults ? "Back to Results" : "Back to Rating"}
+            </button>
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Universal Analytics Dashboard</h1>
           <p className="text-gray-600">Live data updates - Universal access for all users</p>
