@@ -15,44 +15,44 @@ import {
   Minus,
   Wifi,
   WifiOff,
-  Zap,
-  Activity,
   Share2,
   Users,
 } from "lucide-react"
-import { useRealTimeAnalytics } from "@/app/hooks/use-real-time-analytics"
+import { useUniversalAnalytics, useUniversalAnalyticsData } from "@/app/services/universal-analytics"
 import Link from "next/link"
 import { getAllLeaderBiographies } from "@/app/data/leader-biographies"
 
 /**
- * Real Analytics Dashboard v18 - Real Data Only
+ * Universal Analytics Dashboard v21 - Live Data Updates
  *
  * Features:
- * - Real-time data updates with visual indicators
+ * - Real-time data updates with universal analytics system
  * - Connection status monitoring
- * - Velocity tracking and trend analysis
+ * - Live data synchronization across all users
  * - Export functionality
  * - Responsive design
  * - Error handling and loading states
  * - Performance metrics
- * - Starts with zero data, builds from real user interactions
+ * - Uses the new universal analytics system for live updates
  */
 
 const AnalyticsPage = () => {
   const [timeRange, setTimeRange] = useState<"all" | "week" | "month">("all")
 
-  // Use our enhanced analytics hook
-  const { data, isLoading, error, hasNewData, isConnected, refresh } = useRealTimeAnalytics({
-    onUpdate: (newData) => {
-      console.log("📊 Analytics dashboard updated:", newData)
-    },
-    onError: (error) => {
-      console.error("📊 Analytics dashboard error:", error)
-    },
-  })
+  // Use the new universal analytics system for live data
+  const { data, isLoading, error, hasNewData, isConnected, refresh, summary } = useUniversalAnalytics()
 
-  // Get analytics summary
-  const summary = data?.summary
+  // Get additional analytics data
+  const {
+    totalRatings,
+    totalShares,
+    shareAnalytics,
+    leaderRatings,
+    activeUsers,
+    lastUpdated,
+    version,
+    isRedisConnected,
+  } = useUniversalAnalyticsData()
 
   // Format platform names for display
   const formatPlatformName = (platform: string) => {
@@ -119,7 +119,7 @@ const AnalyticsPage = () => {
 
   // Filter stats based on time range
   const filteredStats =
-    data?.shareAnalytics?.filter((stat) => {
+    shareAnalytics?.filter((stat) => {
       if (timeRange === "all" || !stat.lastShared) return true
 
       const lastShared = new Date(stat.lastShared)
@@ -138,8 +138,8 @@ const AnalyticsPage = () => {
       return true
     }) || []
 
-  // Calculate total shares
-  const totalShares = filteredStats.reduce((sum, stat) => sum + stat.count, 0)
+  // Calculate total shares from filtered data
+  const filteredTotalShares = filteredStats.reduce((sum, stat) => sum + stat.count, 0)
 
   // Sort stats by count (descending)
   const sortedStats = [...filteredStats].sort((a, b) => b.count - a.count)
@@ -156,10 +156,10 @@ const AnalyticsPage = () => {
 
   // Export data as CSV
   const exportCSV = () => {
-    if (!data?.shareAnalytics) return
+    if (!shareAnalytics) return
 
     const headers = ["Platform", "Shares", "Last Shared", "Trend", "Velocity (per hour)"]
-    const rows = data.shareAnalytics.map((stat) => [
+    const rows = shareAnalytics.map((stat) => [
       formatPlatformName(stat.platform),
       stat.count.toString(),
       stat.lastShared ? formatDate(stat.lastShared) : "Never",
@@ -173,7 +173,7 @@ const AnalyticsPage = () => {
     const link = document.createElement("a")
     const url = URL.createObjectURL(blob)
     link.setAttribute("href", url)
-    link.setAttribute("download", `real-analytics-v18-${new Date().toISOString().split("T")[0]}.csv`)
+    link.setAttribute("download", `universal-analytics-v21-${new Date().toISOString().split("T")[0]}.csv`)
     link.style.visibility = "hidden"
     document.body.appendChild(link)
     link.click()
@@ -190,8 +190,8 @@ const AnalyticsPage = () => {
               ← Back to Rating
             </Link>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Real-Time Analytics Dashboard</h1>
-          <p className="text-gray-600">Live sharing statistics - Real data only, no simulation</p>
+          <h1 className="text-3xl font-bold text-gray-900">Universal Analytics Dashboard</h1>
+          <p className="text-gray-600">Live data updates - Universal access for all users</p>
         </div>
 
         <div className="flex flex-col items-end gap-2">
@@ -199,10 +199,11 @@ const AnalyticsPage = () => {
           <div className={`flex items-center gap-2 text-sm ${isConnected ? "text-green-600" : "text-red-600"}`}>
             {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
             <span>{isConnected ? "Connected" : "Disconnected"}</span>
+            {isRedisConnected && <Badge className="bg-green-500 text-white text-xs">Redis</Badge>}
           </div>
 
           {/* Last Updated */}
-          {data?.lastUpdated && (
+          {lastUpdated && (
             <div
               className={`flex items-center gap-2 text-sm ${
                 hasNewData ? "text-green-600 animate-pulse" : "text-gray-500"
@@ -210,14 +211,14 @@ const AnalyticsPage = () => {
             >
               <Clock className="w-4 h-4" />
               <span>
-                {hasNewData ? "Just updated!" : "Last updated:"} {formatDate(data.lastUpdated)}
+                {hasNewData ? "Just updated!" : "Last updated:"} {formatDate(lastUpdated)}
               </span>
               {hasNewData && <Badge className="bg-green-500 text-white">Live</Badge>}
             </div>
           )}
 
           {/* Version Info */}
-          <div className="text-xs text-gray-400">v18 • Real Data Only</div>
+          <div className="text-xs text-gray-400">v{version} • Universal Access</div>
         </div>
       </div>
 
@@ -226,7 +227,7 @@ const AnalyticsPage = () => {
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-center gap-2 text-red-800">
             <span className="font-medium">Error:</span>
-            <span>{error}</span>
+            <span>{error.message}</span>
           </div>
         </div>
       )}
@@ -264,7 +265,7 @@ const AnalyticsPage = () => {
         </div>
 
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportCSV} disabled={!data?.shareAnalytics}>
+          <Button variant="outline" size="sm" onClick={exportCSV} disabled={!shareAnalytics}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -288,9 +289,21 @@ const AnalyticsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-bold">
-              {isLoading ? <Skeleton className="h-10 w-20" /> : totalShares.toLocaleString()}
+              {isLoading ? <Skeleton className="h-10 w-20" /> : filteredTotalShares.toLocaleString()}
             </div>
             <p className="text-sm text-gray-500 mt-2">Real user interactions</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Total Ratings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold">
+              {isLoading ? <Skeleton className="h-10 w-20" /> : totalRatings.toLocaleString()}
+            </div>
+            <p className="text-sm text-gray-500 mt-2">Leader evaluations</p>
           </CardContent>
         </Card>
 
@@ -305,15 +318,15 @@ const AnalyticsPage = () => {
               <>
                 <div className="flex items-center gap-2">
                   <div className="text-2xl font-bold">
-                    {totalShares > 0 ? formatPlatformName(sortedStats[0].platform) : "None yet"}
+                    {filteredTotalShares > 0 ? formatPlatformName(sortedStats[0]?.platform || "none") : "None yet"}
                   </div>
-                  {totalShares > 0 &&
-                    sortedStats[0].trend &&
+                  {filteredTotalShares > 0 &&
+                    sortedStats[0]?.trend &&
                     getTrendIcon(sortedStats[0].trend, sortedStats[0].velocity)}
                 </div>
                 <p className="text-sm text-gray-500 mt-2">
-                  {totalShares > 0
-                    ? `${sortedStats[0].count.toLocaleString()} shares (${Math.round((sortedStats[0].count / totalShares) * 100)}%)`
+                  {filteredTotalShares > 0 && sortedStats[0]
+                    ? `${sortedStats[0].count.toLocaleString()} shares (${Math.round((sortedStats[0].count / filteredTotalShares) * 100)}%)`
                     : "Start sharing to see data"}
                 </p>
               </>
@@ -324,46 +337,15 @@ const AnalyticsPage = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Trending Now
+              <Users className="h-5 w-5" />
+              Active Users
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-10 w-32" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold">
-                  {summary?.trending.length > 0 ? formatPlatformName(summary.trending[0]) : "None yet"}
-                </div>
-                <p className="text-sm text-gray-500 mt-2">
-                  {summary?.trending.length > 0
-                    ? `${summary.trending.length} platform${summary.trending.length > 1 ? "s" : ""} trending`
-                    : "No trending activity yet"}
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5" />
-              Velocity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-10 w-32" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold">
-                  {data?.shareAnalytics?.reduce((sum, stat) => sum + (stat.velocity || 0), 0) || 0}
-                </div>
-                <p className="text-sm text-gray-500 mt-2">Shares per hour</p>
-              </>
-            )}
+            <div className="text-4xl font-bold">
+              {isLoading ? <Skeleton className="h-10 w-20" /> : activeUsers.toLocaleString()}
+            </div>
+            <p className="text-sm text-gray-500 mt-2">Currently online</p>
           </CardContent>
         </Card>
       </div>
@@ -381,7 +363,7 @@ const AnalyticsPage = () => {
                 </Badge>
               )}
               <Badge variant="outline" className="text-blue-600 border-blue-600">
-                Real Data Only
+                Universal Access
               </Badge>
             </div>
           </CardTitle>
@@ -397,7 +379,7 @@ const AnalyticsPage = () => {
                     <Skeleton className="h-3 w-full" />
                   </div>
                 ))
-            ) : totalShares === 0 ? (
+            ) : filteredTotalShares === 0 ? (
               <div className="text-center py-12">
                 <Share2 className="h-12 w-12 mx-auto text-gray-300 mb-4" />
                 <p className="text-gray-500 text-lg">No sharing data yet</p>
@@ -455,9 +437,9 @@ const AnalyticsPage = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {data?.leaderRatings && Object.keys(data.leaderRatings).length > 0 ? (
+          {leaderRatings && Object.keys(leaderRatings).length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Object.entries(data.leaderRatings)
+              {Object.entries(leaderRatings)
                 .sort(([, a], [, b]) => b.averageRating - a.averageRating)
                 .slice(0, 6)
                 .map(([officialId, rating]) => {
@@ -516,17 +498,17 @@ const AnalyticsPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>About Real-Time Analytics</CardTitle>
+            <CardTitle>About Universal Analytics</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
-                <h4 className="font-medium mb-2">Real Data Only:</h4>
+                <h4 className="font-medium mb-2">Universal Access:</h4>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• No dummy data or simulation</li>
-                  <li>• Starts at zero, builds from real user interactions</li>
-                  <li>• Every share is tracked from actual user actions</li>
-                  <li>• Data updates in real-time as users share</li>
+                  <li>• All users see the same data globally</li>
+                  <li>• Real-time synchronization across sessions</li>
+                  <li>• No user-specific filtering or permissions</li>
+                  <li>• Data updates instantly for everyone</li>
                 </ul>
               </div>
 
@@ -535,10 +517,10 @@ const AnalyticsPage = () => {
                 <ul className="text-sm text-gray-600 space-y-1">
                   <li>• Data updates automatically every 5 seconds</li>
                   <li>• Share actions are tracked immediately</li>
-                  <li>• Efficient polling minimizes server load</li>
-                  <li>• Velocity tracking shows shares per hour</li>
-                  <li>• Trend indicators show platform momentum</li>
+                  <li>• Redis storage with localStorage fallback</li>
                   <li>• Connection status monitoring</li>
+                  <li>• Cross-browser data synchronization</li>
+                  <li>• Real data only, no simulation</li>
                 </ul>
               </div>
             </div>
@@ -564,10 +546,10 @@ const AnalyticsPage = () => {
               <div>
                 <h4 className="font-medium mb-2">Understanding Metrics:</h4>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Velocity: Real shares per hour for each platform</li>
-                  <li>• Trend: Up/down/stable based on recent activity</li>
-                  <li>• Live updates: Real-time data synchronization</li>
-                  <li>• All data reflects actual user behavior</li>
+                  <li>• All numbers represent real user interactions</li>
+                  <li>• Data is shared globally across all users</li>
+                  <li>• Live updates show real-time activity</li>
+                  <li>• Connection status shows data sync health</li>
                 </ul>
               </div>
 
