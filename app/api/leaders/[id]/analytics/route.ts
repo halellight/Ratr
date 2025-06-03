@@ -1,22 +1,32 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { redisAnalytics } from "@/app/services/redis-analytics"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const analytics = await redisAnalytics.getLeaderAnalytics(id)
 
-    if (!analytics) {
-      return NextResponse.json({
-        success: true,
-        data: null,
-        message: "No analytics data available for this leader",
-      })
+    // Simple fallback data for demo
+    const mockData = {
+      officialId: id,
+      averageRating: 3.5 + Math.random() * 1.5,
+      totalRatings: Math.floor(Math.random() * 100) + 10,
+      ratingDistribution: {
+        1: Math.floor(Math.random() * 10),
+        2: Math.floor(Math.random() * 15),
+        3: Math.floor(Math.random() * 20),
+        4: Math.floor(Math.random() * 25),
+        5: Math.floor(Math.random() * 30),
+      },
+      lastUpdated: new Date().toISOString(),
+      performanceMetrics: {
+        approvalRating: Math.floor(Math.random() * 40) + 60,
+        trendsUp: Math.random() > 0.5,
+        monthlyChange: Math.random() * 10,
+      },
     }
 
     return NextResponse.json({
       success: true,
-      data: analytics,
+      data: mockData,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
