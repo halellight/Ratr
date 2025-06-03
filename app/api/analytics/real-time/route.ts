@@ -1,20 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
-
-// Simple in-memory storage for demo purposes
-const analyticsData = {
-  totalRatings: 0,
-  totalShares: 0,
-  leaderRatings: {} as Record<string, any>,
-  shareAnalytics: [] as any[],
-  lastUpdated: new Date().toISOString(),
-  activeUsers: 0,
-}
+import { redisAnalytics } from "@/app/services/redis-analytics"
 
 export async function GET(request: NextRequest) {
   try {
+    const analytics = await redisAnalytics.getAnalytics()
+
     return NextResponse.json({
       success: true,
-      data: analyticsData,
+      data: analytics,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
@@ -35,62 +28,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { type, data } = body
 
+    // Generate a simple user ID for tracking
+    const userId = request.headers.get("x-user-id") || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
     if (type === "rating") {
       const { officialId, rating } = data
-
-      // Update analytics data
-      analyticsData.totalRatings += 1
-
-      if (!analyticsData.leaderRatings[officialId]) {
-        analyticsData.leaderRatings[officialId] = {
-          officialId,
-          averageRating: rating,
-          totalRatings: 1,
-          ratingDistribution: { [rating]: 1 },
-          lastUpdated: new Date().toISOString(),
-          performanceMetrics: {
-            approvalRating: Math.round((rating / 5) * 100),
-            trendsUp: rating > 3,
-            monthlyChange: Math.random() * 5,
-          },
-        }
-      } else {
-        const current = analyticsData.leaderRatings[officialId]
-        const newTotal = current.totalRatings + 1
-        const newAverage = (current.averageRating * current.totalRatings + rating) / newTotal
-
-        current.averageRating = newAverage
-        current.totalRatings = newTotal
-        current.ratingDistribution[rating] = (current.ratingDistribution[rating] || 0) + 1
-        current.lastUpdated = new Date().toISOString()
-        current.performanceMetrics.approvalRating = Math.round((newAverage / 5) * 100)
-      }
-
-      analyticsData.lastUpdated = new Date().toISOString()
+      await redisAnalytics.trackRating(officialId, rating, userId)
     } else if (type === "share") {
       const { platform } = data
-      analyticsData.totalShares += 1
-
-      const existingShare = analyticsData.shareAnalytics.find((s) => s.platform === platform)
-      if (existingShare) {
-        existingShare.count += 1
-        existingShare.lastShared = new Date().toISOString()
-      } else {
-        analyticsData.shareAnalytics.push({
-          platform,
-          count: 1,
-          lastShared: new Date().toISOString(),
-          trend: "up",
-          velocity: 1,
-        })
-      }
-
-      analyticsData.lastUpdated = new Date().toISOString()
+      await redisAnalytics.trackShare(platform, userId)
+    } else {
+      return NextResponse.json({ success: false, error: "Invalid tracking type" }, { status: 400 })
     }
+
+    // Return updated analytics
+    const analytics = await redisAnalytics.getAnalytics()
 
     return NextResponse.json({
       success: true,
-      data: analyticsData,
+      data: analytics,
       message: `${type} tracked successfully`,
       timestamp: new Date().toISOString(),
     })
