@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis"
+import { blobAnalytics, type BlobAnalyticsData } from "./blob-analytics"
 
 // Initialize Redis client with proper error handling
 let redis: Redis | null = null
@@ -58,6 +59,8 @@ class RedisAnalyticsService {
   private readonly ANALYTICS_KEY = "nigeria:cabinet:analytics:v21"
   private readonly LEADER_RATINGS_KEY = "nigeria:cabinet:leader_ratings:v21"
   private readonly SHARE_ANALYTICS_KEY = "nigeria:cabinet:share_analytics:v21"
+  private lastBackupTime = 0
+  private readonly BACKUP_INTERVAL = 5 * 60 * 1000 // 5 minutes
 
   private getRedis(): Redis {
     if (!redis) {
@@ -85,6 +88,87 @@ class RedisAnalyticsService {
     } catch (error) {
       console.warn("Failed to parse JSON:", str, error)
       return {}
+    }
+  }
+
+  // Backup data to Vercel Blob
+  private async backupToBlob(): Promise<void> {
+    try {
+      const now = Date.now()
+      if (now - this.lastBackupTime < this.BACKUP_INTERVAL) {
+        return // Skip if backed up recently
+      }
+
+      console.log("💾 Starting backup to Vercel Blob...")
+      const data = await this.getAnalytics()
+
+      const blobData: BlobAnalyticsData = {
+        totalRatings: data.totalRatings,
+        totalShares: data.totalShares,
+        leaderRatings: data.leaderRatings,
+        shareAnalytics: data.shareAnalytics,
+        lastUpdated: data.lastUpdated,
+        version: "v21",
+        backupTimestamp: new Date().toISOString(),
+      }
+
+      const success = await blobAnalytics.storeAnalytics(blobData)
+      if (success) {
+        this.lastBackupTime = now
+        console.log("✅ Backup to Vercel Blob completed successfully")
+      }
+    } catch (error) {
+      console.error("❌ Failed to backup to Blob:", error)
+    }
+  }
+
+  // Restore data from Vercel Blob
+  private async restoreFromBlob(): Promise<boolean> {
+    try {
+      console.log("📥 Attempting to restore from Vercel Blob...")
+      const blobData = await blobAnalytics.getAnalytics()
+
+      if (!blobData) {
+        console.log("📝 No backup data found in Vercel Blob")
+        return false
+      }
+
+      console.log("🔄 Restoring data from Blob backup...")
+      const redisClient = this.getRedis()
+
+      // Restore global analytics
+      await redisClient.hset(this.ANALYTICS_KEY, {
+        totalRatings: blobData.totalRatings.toString(),
+        totalShares: blobData.totalShares.toString(),
+        lastUpdated: blobData.lastUpdated,
+      })
+
+      // Restore leader ratings
+      for (const [officialId, rating] of Object.entries(blobData.leaderRatings)) {
+        const leaderKey = `${this.LEADER_RATINGS_KEY}:${officialId}`
+        await redisClient.hset(leaderKey, {
+          officialId,
+          averageRating: rating.averageRating.toString(),
+          totalRatings: rating.totalRatings.toString(),
+          ratingDistribution: this.safeStringify(rating.ratingDistribution),
+          lastUpdated: rating.lastUpdated,
+        })
+      }
+
+      // Restore share analytics
+      for (const shareData of blobData.shareAnalytics) {
+        const shareKey = `${this.SHARE_ANALYTICS_KEY}:${shareData.platform}`
+        await redisClient.hset(shareKey, {
+          count: shareData.count.toString(),
+          lastShared: shareData.lastShared || "",
+        })
+      }
+
+      console.log("✅ Data restored from Vercel Blob successfully")
+      return true
+    } catch (error) {
+      console.error("❌ Failed to restore from Blob:", error)
+      return false
     }
   }
 
@@ -129,6 +213,9 @@ class RedisAnalyticsService {
       await redisClient.hset(this.ANALYTICS_KEY, "lastUpdated", new Date().toISOString())
 
       console.log(`✅ Redis: Global analytics updated - vote logged successfully!`)
+
+      // Backup to Blob after significant changes
+      await this.backupToBlob()
     } catch (error) {
       console.error("❌ Redis: Failed to track rating:", error)
       throw error
@@ -152,13 +239,16 @@ class RedisAnalyticsService {
       await redisClient.hset(this.ANALYTICS_KEY, "lastUpdated", new Date().toISOString())
 
       console.log(`✅ Redis: Share tracked successfully for ${platform}`)
+
+      // Backup to Blob after significant changes
+      await this.backupToBlob()
     } catch (error) {
       console.error("❌ Redis: Failed to track share:", error)
       throw error
     }
   }
 
-  // Get real-time analytics from Redis
+  // Get real-time analytics from Redis (with Blob fallback)
   async getAnalytics(): Promise<RealTimeAnalytics> {
     try {
       const redisClient = this.getRedis()
@@ -166,6 +256,20 @@ class RedisAnalyticsService {
 
       // Get global data
       const globalData = await redisClient.hgetall(this.ANALYTICS_KEY)
+
+      // If Redis is empty, try to restore from Blob
+      if (!globalData || Object.keys(globalData).length === 0) {
+        console.log("📝 Redis appears empty, attempting restore from Blob...")
+        const restored = await this.restoreFromBlob()
+        if (restored) {
+          // Retry getting data after restore
+          const restoredGlobalData = await redisClient.hgetall(this.ANALYTICS_KEY)
+          if (restoredGlobalData && Object.keys(restoredGlobalData).length > 0) {
+            console.log("✅ Data successfully restored from Blob")
+            return this.getAnalytics() // Recursive call after restore
+          }
+        }
+      }
 
       // Get leader ratings
       const leaderKeys = await redisClient.keys(`${this.LEADER_RATINGS_KEY}:*`)
@@ -189,7 +293,7 @@ class RedisAnalyticsService {
             performanceMetrics: {
               approvalRating,
               trendsUp: averageRating > 3,
-              monthlyChange: 0, // Real data only, no dummy values
+              monthlyChange: 0,
             },
           }
         }
@@ -209,7 +313,7 @@ class RedisAnalyticsService {
             count: Number(data.count || 0),
             lastShared: data.lastShared || "",
             trend: "stable" as const,
-            velocity: 0, // Real data only
+            velocity: 0,
           })
         }
       }
@@ -234,7 +338,7 @@ class RedisAnalyticsService {
         leaderRatings,
         shareAnalytics,
         lastUpdated: globalData?.lastUpdated || new Date().toISOString(),
-        activeUsers: 1, // Real count would require session tracking
+        activeUsers: 1,
       }
 
       console.log("✅ Redis: Analytics data retrieved:", {
@@ -246,11 +350,27 @@ class RedisAnalyticsService {
       return result
     } catch (error) {
       console.error("❌ Redis: Failed to get analytics:", error)
+
+      // If Redis fails completely, try to get data from Blob
+      console.log("🔄 Attempting to get data directly from Blob...")
+      const blobData = await blobAnalytics.getAnalytics()
+      if (blobData) {
+        console.log("✅ Retrieved data from Blob as fallback")
+        return {
+          totalRatings: blobData.totalRatings,
+          totalShares: blobData.totalShares,
+          leaderRatings: blobData.leaderRatings,
+          shareAnalytics: blobData.shareAnalytics,
+          lastUpdated: blobData.lastUpdated,
+          activeUsers: 1,
+        }
+      }
+
       throw error
     }
   }
 
-  // Reset analytics (admin only)
+  // Reset analytics (admin only) - also clears Blob
   async resetAnalytics(): Promise<void> {
     try {
       const redisClient = this.getRedis()
@@ -261,11 +381,30 @@ class RedisAnalyticsService {
         await redisClient.del(...keys)
       }
 
-      console.log("✅ Redis: Analytics data reset successfully")
+      // Also delete from Blob
+      await blobAnalytics.deleteAnalytics()
+
+      console.log("✅ Redis & Blob: Analytics data reset successfully")
     } catch (error) {
       console.error("❌ Redis: Failed to reset analytics:", error)
       throw error
     }
+  }
+
+  // Manual backup trigger
+  async manualBackup(): Promise<boolean> {
+    try {
+      await this.backupToBlob()
+      return true
+    } catch (error) {
+      console.error("❌ Manual backup failed:", error)
+      return false
+    }
+  }
+
+  // Get backup info
+  async getBackupInfo() {
+    return await blobAnalytics.getBlobInfo()
   }
 }
 
