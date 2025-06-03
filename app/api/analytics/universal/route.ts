@@ -1,13 +1,12 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
 
 /**
  * Universal Analytics API Endpoint v21
- *
  * Fallback system that works without Redis if environment variables are missing.
  * Uses in-memory storage as fallback, no dummy data.
  */
 
-// In-memory fallback storage (real data only)
+// In-memory fallback storage
 let fallbackAnalyticsData = {
   totalRatings: 0,
   totalShares: 0,
@@ -26,125 +25,103 @@ let fallbackAnalyticsData = {
   version: "21",
   globalId: "universal",
   isRedisConnected: false,
-}
+};
 
-// Check if Redis is properly configured
 function isRedisConfigured(): boolean {
-  const hasUrl = process.env.KV_REST_API_URL && process.env.KV_REST_API_URL.trim() !== ""
-  const hasToken = process.env.KV_REST_API_TOKEN && process.env.KV_REST_API_TOKEN.trim() !== ""
-  return hasUrl && hasToken
+  const hasUrl = process.env.KV_REST_API_URL?.trim() !== "";
+  const hasToken = process.env.KV_REST_API_TOKEN?.trim() !== "";
+  return hasUrl && hasToken;
 }
 
-// Try to import Redis service only if configured
-let redisAnalytics: any = null
+let redisAnalytics: any = null;
 if (isRedisConfigured()) {
   try {
-    const redisModule = require("@/app/services/redis-analytics")
-    redisAnalytics = redisModule.redisAnalytics
-    console.log("✅ Redis analytics service loaded")
+    const redisModule = require("@/app/services/redis-analytics");
+    redisAnalytics = redisModule.redisAnalytics;
+    console.log("✅ Redis analytics service loaded");
   } catch (error) {
-    console.warn("⚠️ Failed to load Redis analytics service:", error)
+    console.warn("⚠️ Failed to load Redis analytics service:", error);
   }
 } else {
-  console.warn("⚠️ Redis not configured - using fallback storage")
+  console.warn("⚠️ Redis not configured - using fallback storage");
 }
 
-/**
- * GET /api/analytics/universal
- */
 export async function GET(request: Request) {
   try {
-    const url = new URL(request.url)
-    const since = url.searchParams.get("since")
+    const url = new URL(request.url);
+    const since = url.searchParams.get("since");
 
-    console.log(`🌍 GET /api/analytics/universal - since: ${since}`)
+    console.log(`🌍 GET /api/analytics/universal - since: ${since}`);
 
-    let analyticsData = fallbackAnalyticsData
+    let analyticsData = fallbackAnalyticsData;
 
-    // Try Redis if available
     if (redisAnalytics) {
       try {
-        console.log("📊 Attempting to get data from Redis...")
-        analyticsData = await redisAnalytics.getAnalytics()
-        analyticsData.isRedisConnected = true
-        console.log("✅ Got data from Redis:", {
-          totalRatings: analyticsData.totalRatings,
-          totalShares: analyticsData.totalShares,
-        })
+        analyticsData = await redisAnalytics.getAnalytics();
+        analyticsData.isRedisConnected = true;
       } catch (error) {
-        console.warn("⚠️ Redis failed, using fallback:", error)
-        analyticsData = fallbackAnalyticsData
-        analyticsData.isRedisConnected = false
+        console.warn("⚠️ Redis failed, using fallback:", error);
+        analyticsData = fallbackAnalyticsData;
+        analyticsData.isRedisConnected = false;
       }
     }
 
-    // Check if client has latest data
     if (since && new Date(since) >= new Date(analyticsData.lastUpdated)) {
-      console.log("🌍 Returning 304 Not Modified - client has latest data")
       return new Response(null, {
         status: 304,
         headers: {
           "Cache-Control": "no-cache, must-revalidate",
           "Last-Modified": analyticsData.lastUpdated,
         },
-      })
+      });
     }
 
-    // Update server time
-    analyticsData.serverTime = new Date().toISOString()
-    analyticsData.version = "21"
+    analyticsData.serverTime = new Date().toISOString();
+    analyticsData.version = "21";
 
     return NextResponse.json({
       success: true,
       data: analyticsData,
       message: redisAnalytics ? "Data from Redis" : "Data from fallback storage",
       timestamp: new Date().toISOString(),
-    })
+    });
   } catch (error) {
-    console.error("❌ GET /api/analytics/universal error:", error)
+    console.error("❌ GET /api/analytics/universal error:", error);
     return NextResponse.json(
       {
         success: false,
         error: "Failed to fetch analytics data",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }
 
-/**
- * POST /api/analytics/universal
- */
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    const { type, data } = body
+    const body = await request.json();
+    const { type, data } = body;
 
-    console.log(`🌍 POST /api/analytics/universal - type: ${type}`, data)
+    console.log(`🌍 POST /api/analytics/universal - type: ${type}`, data);
 
-    let success = false
+    let success = false;
 
     if (type === "rating" && data?.officialId && data?.rating) {
-      console.log(`🗳️ Logging vote: ${data.officialId} = ${data.rating}/5`)
-
-      // Try Redis first
       if (redisAnalytics) {
         try {
-          await redisAnalytics.trackRating(data.officialId, data.rating)
-          console.log(`✅ Vote logged to Redis successfully!`)
-          success = true
+          await redisAnalytics.trackRating(data.officialId, data.rating);
+          success = true;
         } catch (error) {
-          console.warn("⚠️ Redis tracking failed:", error)
+          console.warn("⚠️ Redis tracking failed:", error);
         }
       }
 
-      // Fallback to in-memory storage
       if (!success) {
-        console.log(`📱 Using fallback storage for vote`)
-        fallbackAnalyticsData.totalRatings += 1
+        fallbackAnalyticsData.totalRatings += 1;
+        const entry = fallbackAnalyticsData.leaderRatings[data.officialId];
 
-        if (!fallbackAnalyticsData.leaderRatings[data.officialId]) {
+        if (!entry) {
           fallbackAnalyticsData.leaderRatings[data.officialId] = {
             officialId: data.officialId,
             averageRating: data.rating,
@@ -154,53 +131,53 @@ export async function POST(request: Request) {
             performanceMetrics: {
               approvalRating: Math.round((data.rating / 5) * 100),
               trendsUp: data.rating > 3,
-              monthlyChange: 0, // Real data only
+              monthlyChange: 0,
             },
-          }
+          };
         } else {
-          const current = fallbackAnalyticsData.leaderRatings[data.officialId]
-          const newTotal = current.totalRatings + 1
-          const newAverage = (current.averageRating * current.totalRatings + data.rating) / newTotal
+          const newTotal = entry.totalRatings + 1;
+          const newAverage =
+            (entry.averageRating * entry.totalRatings + data.rating) / newTotal;
 
-          current.averageRating = newAverage
-          current.totalRatings = newTotal
-          current.ratingDistribution[data.rating] = (current.ratingDistribution[data.rating] || 0) + 1
-          current.lastUpdated = new Date().toISOString()
-          current.performanceMetrics.approvalRating = Math.round((newAverage / 5) * 100)
-          current.performanceMetrics.trendsUp = newAverage > 3
+          entry.averageRating = newAverage;
+          entry.totalRatings = newTotal;
+          entry.ratingDistribution[data.rating] =
+            (entry.ratingDistribution[data.rating] || 0) + 1;
+          entry.lastUpdated = new Date().toISOString();
+          entry.performanceMetrics.approvalRating = Math.round(
+            (newAverage / 5) * 100
+          );
+          entry.performanceMetrics.trendsUp = newAverage > 3;
         }
 
-        fallbackAnalyticsData.lastUpdated = new Date().toISOString()
-        success = true
+        fallbackAnalyticsData.lastUpdated = new Date().toISOString();
+        success = true;
       }
     } else if (type === "share" && data?.platform) {
-      console.log(`📊 Logging share: ${data.platform}`)
-
-      // Try Redis first
       if (redisAnalytics) {
         try {
-          await redisAnalytics.trackShare(data.platform)
-          console.log(`✅ Share logged to Redis successfully!`)
-          success = true
+          await redisAnalytics.trackShare(data.platform);
+          success = true;
         } catch (error) {
-          console.warn("⚠️ Redis share tracking failed:", error)
+          console.warn("⚠️ Redis share tracking failed:", error);
         }
       }
 
-      // Fallback to in-memory storage
       if (!success) {
-        console.log(`📱 Using fallback storage for share`)
-        fallbackAnalyticsData.totalShares += 1
+        fallbackAnalyticsData.totalShares += 1;
 
-        const shareIndex = fallbackAnalyticsData.shareAnalytics.findIndex((s) => s.platform === data.platform)
-        if (shareIndex >= 0) {
-          fallbackAnalyticsData.shareAnalytics[shareIndex].count += 1
-          fallbackAnalyticsData.shareAnalytics[shareIndex].lastShared = new Date().toISOString()
-          fallbackAnalyticsData.shareAnalytics[shareIndex].trend = "up"
+        const index = fallbackAnalyticsData.shareAnalytics.findIndex(
+          (s) => s.platform === data.platform
+        );
+        if (index >= 0) {
+          const item = fallbackAnalyticsData.shareAnalytics[index];
+          item.count += 1;
+          item.lastShared = new Date().toISOString();
+          item.trend = "up";
         }
 
-        fallbackAnalyticsData.lastUpdated = new Date().toISOString()
-        success = true
+        fallbackAnalyticsData.lastUpdated = new Date().toISOString();
+        success = true;
       }
     }
 
@@ -211,68 +188,56 @@ export async function POST(request: Request) {
           error: "Invalid tracking data",
           received: { type, data },
         },
-        { status: 400 },
-      )
+        { status: 400 }
+      );
     }
 
-    // Get updated analytics
-    let updatedAnalytics = fallbackAnalyticsData
+    let updatedAnalytics = fallbackAnalyticsData;
     if (redisAnalytics) {
       try {
-        updatedAnalytics = await redisAnalytics.getAnalytics()
-        updatedAnalytics.isRedisConnected = true
+        updatedAnalytics = await redisAnalytics.getAnalytics();
+        updatedAnalytics.isRedisConnected = true;
       } catch (error) {
-        console.warn("⚠️ Failed to get updated Redis data:", error)
-        updatedAnalytics.isRedisConnected = false
+        console.warn("⚠️ Failed to get updated Redis data:", error);
+        updatedAnalytics.isRedisConnected = false;
       }
     }
 
-    updatedAnalytics.serverTime = new Date().toISOString()
-    updatedAnalytics.version = "21"
-
-    console.log(`📊 Updated analytics:`, {
-      totalRatings: updatedAnalytics.totalRatings,
-      totalShares: updatedAnalytics.totalShares,
-      isRedisConnected: updatedAnalytics.isRedisConnected,
-    })
+    updatedAnalytics.serverTime = new Date().toISOString();
+    updatedAnalytics.version = "21";
 
     return NextResponse.json({
       success: true,
       data: updatedAnalytics,
       message: `${type} tracked successfully`,
       timestamp: new Date().toISOString(),
-    })
+    });
   } catch (error) {
-    console.error("❌ POST /api/analytics/universal error:", error)
+    console.error("❌ POST /api/analytics/universal error:", error);
     return NextResponse.json(
       {
         success: false,
         error: "Failed to track analytics event",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }
 
-/**
- * DELETE /api/analytics/universal
- */
 export async function DELETE(request: Request) {
   try {
-    console.log("🗑️ DELETE /api/analytics/universal - resetting data")
+    console.log("🗑️ DELETE /api/analytics/universal - resetting data");
 
-    // Reset Redis if available
     if (redisAnalytics) {
       try {
-        await redisAnalytics.resetAnalytics()
-        console.log("✅ Redis data reset")
+        await redisAnalytics.resetAnalytics();
+        console.log("✅ Redis data reset");
       } catch (error) {
-        console.warn("⚠️ Redis reset failed:", error)
+        console.warn("⚠️ Redis reset failed:", error);
       }
     }
 
-    // Reset fallback data
     fallbackAnalyticsData = {
       totalRatings: 0,
       totalShares: 0,
@@ -291,26 +256,23 @@ export async function DELETE(request: Request) {
       version: "21",
       globalId: "universal",
       isRedisConnected: redisAnalytics !== null,
-    }
-
-    console.log("✅ Analytics data reset successfully")
+    };
 
     return NextResponse.json({
       success: true,
       data: fallbackAnalyticsData,
-      message: "Analytics data reset successfully",
+      message: "Analytics data reset",
       timestamp: new Date().toISOString(),
-    })
+    });
   } catch (error) {
-    console.error("❌ DELETE /api/analytics/universal error:", error)
+    console.error("❌ DELETE /api/analytics/universal error:", error);
     return NextResponse.json(
       {
         success: false,
         error: "Failed to reset analytics data",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }
-export const dynamic = "force-dynamic" // Always fresh data, no caching

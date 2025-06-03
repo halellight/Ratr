@@ -3,6 +3,7 @@ import "@/app/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import type { Metadata } from "next"
 import { Analytics } from "@vercel/analytics/next"
+
 // import { ErrorBoundary } from "./components/error-boundary"
 // import { UniversalAnalyticsHeader } from "./components/universal-analytics-header"
 // import { UniversalAnalyticsProvider } from "./components/universal-analytics-provider"
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
   authors: [
     {
       name: "Nigerian Leaders Rating",
-      url: "https://ratedem.com",
+      url: "https://ratedem.vercel.app",
     },
   ],
   icons: {

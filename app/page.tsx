@@ -9,6 +9,21 @@ import { OfficialRating } from "./components/official-rating"
 import { ResultsCard } from "./components/results-card"
 import { AdminPanel } from "./components/admin-panel"
 import { useUniversalAnalyticsData, useUniversalAnalytics } from "./services/universal-analytics"
+import "@/app/globals.css"
+import { NextResponse } from "next/server"
+// This is a placeholder for the Next.js API route that would handle analytics
+export async function GET() {
+  return NextResponse.json({
+    success: true,
+    data: {
+      totalRatings: 0,
+      totalShares: 0,
+      activeUsers: 0,
+      isConnected: true,
+      version: "1.0",
+    },
+  })
+}
 
 const defaultOfficials = [
   {
