@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Users, Award, Share2, ChevronRight, Settings, Cloud, BarChart3, Globe, Activity } from "lucide-react"
+import { Users, Share2, Settings, BarChart3, Globe, Activity } from "lucide-react"
 import { OfficialRating } from "./components/official-rating"
 import { ResultsCard } from "./components/results-card"
 import { AdminPanel } from "./components/admin-panel"
@@ -367,195 +367,179 @@ export default function Component() {
             </div>
           </div>
 
-          {/* Creative Hero Section */}
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-green-600 to-green-700 text-white mb-16">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
-            <div className="absolute bottom-0 left-0 w-96 h-96 bg-white opacity-5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
-
-            <div className="relative z-10 px-6 py-16 md:py-24 md:px-12">
-              <div className="flex items-center justify-center gap-3 mb-8 animate-pulse">
-                <div className="w-10 h-6 bg-green-800 rounded-sm"></div>
-                <div className="w-10 h-6 bg-white rounded-sm"></div>
-                <div className="w-10 h-6 bg-green-800 rounded-sm"></div>
+          {/* Simplified Hero Section - Action First */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 to-green-700 text-white mb-12">
+            <div className="relative z-10 px-6 py-12 text-center">
+              <div className="flex items-center justify-center gap-2 mb-6">
+                <div className="w-8 h-5 bg-green-800 rounded-sm"></div>
+                <div className="w-8 h-5 bg-white rounded-sm"></div>
+                <div className="w-8 h-5 bg-green-800 rounded-sm"></div>
               </div>
 
-              <div className="max-w-4xl mx-auto text-center">
-                <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 tracking-tight">
-                  <span className="inline-block transform hover:scale-105 transition-transform duration-300">Rate</span>{" "}
-                  <span className="inline-block transform hover:scale-105 transition-transform duration-300">Your</span>{" "}
-                  <span className="inline-block bg-white text-green-600 px-4 py-2 rounded-lg transform hover:scale-105 transition-transform duration-300">
-                    Leaders
-                  </span>
-                </h1>
+              <h1 className="text-4xl md:text-5xl font-bold mb-4">Rate Nigeria's Leaders</h1>
 
-                <p className="text-xl md:text-2xl text-green-50 mb-12 max-w-3xl mx-auto">
-                  Share your honest opinion about Nigeria's public officials after two years in office.
-                  <span className="block mt-2 font-light">
-                    Get a personalized social media card to share your views!
-                  </span>
-                </p>
+              <p className="text-xl text-green-50 mb-8 max-w-2xl mx-auto">
+                Quick 2-minute rating • Get shareable results • Join {totalRatings.toLocaleString()}+ ratings
+              </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 transform transition-all hover:scale-105 hover:bg-white/20">
-                    <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Users className="w-8 h-8 text-white" />
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">Rate Officials</h3>
-                    <p className="text-green-50 text-sm">{officials.length} Nigerian leaders to evaluate</p>
-                  </div>
+              {/* Immediate Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
+                
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    document.getElementById("categories")?.scrollIntoView({ behavior: "smooth" })
+                  }}
+                  className="bg-white text-green-700 hover:bg-green-50 px-8 py-4 text-lg font-semibold rounded-full shadow-lg"
+                >
+                  Start Rating Now →
+                </Button>
 
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 transform transition-all hover:scale-105 hover:bg-white/20">
-                    <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Award className="w-8 h-8 text-white" />
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">Get Report Card</h3>
-                    <p className="text-green-50 text-sm">Visualize your ratings in a beautiful format</p>
-                  </div>
+                
+              </div>
 
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 transform transition-all hover:scale-105 hover:bg-white/20">
-                    <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Share2 className="w-8 h-8 text-white" />
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">Share Results</h3>
-                    <p className="text-green-50 text-sm">Download and share on your social media</p>
-                  </div>
+              {/* Quick Stats */}
+              <div className="flex justify-center items-center gap-6 text-sm text-green-100">
+                <div className="flex items-center gap-1">
+                  <Users className="w-4 h-4" />
+                  <span>{totalRatings.toLocaleString()} ratings</span>
                 </div>
-
-                {/* Universal Community Stats */}
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-8">
-                  <div className="flex items-center justify-center gap-2 mb-4">
-                    <Globe className="w-6 h-6 text-white" />
-                    <h3 className="text-xl font-semibold">Universal Community Activity</h3>
-                    <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
-                      v{version}
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="text-center">
-                      <div className="text-3xl font-bold">{totalRatings.toLocaleString()}</div>
-                      <div className="text-green-100 text-sm">Global Ratings</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold">{totalShares.toLocaleString()}</div>
-                      <div className="text-green-100 text-sm">Global Shares</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold">{activeUsers}</div>
-                      <div className="text-green-100 text-sm">Active Users</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <div className={`w-3 h-3 rounded-full ${isConnected ? "bg-green-400" : "bg-red-400"}`} />
-                        <div className="text-3xl font-bold">{isConnected ? "GLOBAL" : "LOCAL"}</div>
-                      </div>
-                      <div className="text-green-100 text-sm">Data Source</div>
-                    </div>
-                  </div>
-                  <div className="mt-4 text-center text-green-100 text-sm">
-                    All users see the same data • Real-time synchronization • Universal access
-                  </div>
+                <div className="flex items-center gap-1">
+                  <Share2 className="w-4 h-4" />
+                  <span>{totalShares.toLocaleString()} shares</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Activity className="w-4 h-4" />
+                  <span>{activeUsers} active now</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Category Filter */}
-          <div className="text-center mb-6">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Select Category to Rate</h2>
-            <p className="text-gray-600 mb-8">Choose a specific category of officials or rate them all</p>
+          {/* Category Selection - More Prominent */}
+          <div id="categories" className="mb-12">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Choose What to Rate</h2>
+              <p className="text-gray-600">Select a category or rate all {officials.length} officials</p>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-3 mb-8">
+              <Button
+                variant={selectedCategory === null ? "default" : "outline"}
+                onClick={() => setSelectedCategory(null)}
+                className="px-6 py-3 text-base font-medium"
+                size="lg"
+              >
+                All Officials ({officials.length})
+              </Button>
+              {categories.map((category) => {
+                const count = officials.filter((o) => o.category === category).length
+                return (
+                  <Button
+                    key={category}
+                    variant={selectedCategory === category ? "default" : "outline"}
+                    onClick={() => setSelectedCategory(category)}
+                    className="px-6 py-3 text-base font-medium"
+                    size="lg"
+                  >
+                    {category} ({count})
+                  </Button>
+                )
+              })}
+            </div>
+
+            {/* Big Start Button */}
+            <div className="text-center">
+              <Button
+                size="lg"
+                onClick={() => {
+                  const filtered = selectedCategory
+                    ? officials.filter((o) => o.category === selectedCategory)
+                    : officials
+                  setOfficialsToRate(filtered)
+                  setCurrentOfficialIndex(0)
+                  setRatings({})
+                  setCurrentStep("rating")
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-12 py-4 text-xl rounded-full shadow-lg hover:shadow-xl transition-all"
+              >
+                Start Rating {selectedCategory || "All Officials"} →
+              </Button>
+              <p className="text-sm text-gray-500 mt-2">Takes about 2 minutes • Get shareable results</p>
+            </div>
           </div>
 
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-8 h-5 bg-green-600 rounded-sm"></div>
-            <div className="w-8 h-5 bg-white border border-gray-300 rounded-sm"></div>
-            <div className="w-8 h-5 bg-green-600 rounded-sm"></div>
-          </div>
+          {/* Simplified Officials Preview */}
+          <div className="mb-12">
+            <h3 className="text-xl font-semibold text-center mb-6">
+              {selectedCategory ? `${selectedCategory} Officials` : "All Officials"}({filteredOfficials.length})
+            </h3>
 
-          <div className="flex flex-wrap justify-center gap-3 mb-12">
-            <Button
-              variant={selectedCategory === null ? "default" : "outline"}
-              onClick={() => setSelectedCategory(null)}
-              className="mb-2 px-6 py-6 text-lg"
-              size="lg"
-            >
-              All Officials ({officials.length})
-            </Button>
-            {categories.map((category) => {
-              const count = officials.filter((o) => o.category === category).length
-              return (
-                <Button
-                  key={category}
-                  variant={selectedCategory === category ? "default" : "outline"}
-                  onClick={() => setSelectedCategory(category)}
-                  className="mb-2 px-6 py-6 text-lg"
-                  size="lg"
-                >
-                  {category} ({count})
-                </Button>
-              )
-            })}
-          </div>
-
-          {/* Officials Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-            {filteredOfficials.map((official) => {
-              const hasCloudImage = cloudImages[official.id]
-
-              return (
-                <Card
-                  key={official.id}
-                  className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer group border-2 border-transparent hover:border-green-200"
-                >
-                  <CardHeader className="text-center pb-2">
-                    <div className="relative w-20 h-20 mx-auto mb-3 rounded-full bg-gray-200 overflow-hidden group-hover:ring-4 group-hover:ring-green-100 transition-all">
-                      <img
-                        src={official.image || "/placeholder.svg"}
-                        alt={official.fullName}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          target.src = "/placeholder.svg?height=80&width=80"
-                        }}
-                      />
-                      {hasCloudImage && (
-                        <div className="absolute top-0 right-0 bg-green-500 text-white p-1 rounded-full">
-                          <Cloud className="w-2 h-2" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <Badge variant="secondary">{official.category}</Badge>
-                    </div>
-                    <CardTitle className="text-lg">{official.name}</CardTitle>
-                    <CardDescription className="text-sm">{official.fullName}</CardDescription>
-                  </CardHeader>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {filteredOfficials.slice(0, 12).map((official) => (
+                <Card key={official.id} className="hover:shadow-md transition-shadow cursor-pointer text-center p-3">
+                  <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-gray-200 overflow-hidden">
+                    <img
+                      src={official.image || "/placeholder.svg"}
+                      alt={official.fullName}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        target.src = "/placeholder.svg?height=64&width=64"
+                      }}
+                    />
+                  </div>
+                  <p className="text-sm font-medium">{official.name}</p>
+                  <Badge variant="secondary" className="text-xs mt-1">
+                    {official.category}
+                  </Badge>
                 </Card>
-              )
-            })}
+              ))}
+              {filteredOfficials.length > 12 && (
+                <Card className="flex items-center justify-center p-3 bg-gray-50">
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-gray-600">+{filteredOfficials.length - 12} more</p>
+                    <p className="text-xs text-gray-500">Start rating to see all</p>
+                  </div>
+                </Card>
+              )}
+            </div>
           </div>
 
-          {/* Start Button */}
-          <div className="text-center">
-            <Button
-              size="lg"
-              onClick={() => {
-                const filtered = selectedCategory ? officials.filter((o) => o.category === selectedCategory) : officials
-                setOfficialsToRate(filtered)
-                setCurrentOfficialIndex(0)
-                setRatings({})
-                setCurrentStep("rating")
-              }}
-              className="bg-green-600 hover:bg-green-700 text-white px-12 py-6 text-xl rounded-full shadow-lg hover:shadow-xl transition-all"
-            >
-              Start Rating {selectedCategory || "All Officials"} <ChevronRight className="w-6 h-6 ml-2" />
-            </Button>
+          {/* Simple FAQ - Collapsible */}
+          <div className="max-w-2xl mx-auto pb-12">
+            <details className="bg-white rounded-lg shadow-sm border p-4 mb-4">
+              <summary className="font-medium cursor-pointer">How does this work?</summary>
+              <p className="text-sm text-gray-600 mt-2">
+                Rate officials 1-5 stars, get a shareable report card, and see how others rated them.
+              </p>
+            </details>
+
+            <details className="bg-white rounded-lg shadow-sm border p-4 mb-4">
+              <summary className="font-medium cursor-pointer">Is this anonymous?</summary>
+              <p className="text-sm text-gray-600 mt-2">
+                Yes, completely anonymous. We only track ratings, not personal information.
+              </p>
+            </details>
+
+            <details className="bg-white rounded-lg shadow-sm border p-4">
+              <summary className="font-medium cursor-pointer">What happens to my ratings?</summary>
+              <p className="text-sm text-gray-600 mt-2">
+                You get a personalized report card to share on social media, and your ratings contribute to the overall
+                statistics.
+              </p>
+            </details>
           </div>
+
+          {/* Admin Panel */}
+          {showAdminPanel && (
+            <AdminPanel
+              officials={officials}
+              onUpdateOfficials={setOfficials}
+              onClose={() => setShowAdminPanel(false)}
+            />
+          )}
         </div>
-
-        {/* Admin Panel */}
-        {showAdminPanel && (
-          <AdminPanel officials={officials} onUpdateOfficials={setOfficials} onClose={() => setShowAdminPanel(false)} />
-        )}
       </div>
     )
   }
