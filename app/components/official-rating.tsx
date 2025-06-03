@@ -19,7 +19,7 @@ import {
   Users,
   BarChart3,
 } from "lucide-react"
-import { useLeaderAnalytics } from "@/app/hooks/use-real-time-analytics"
+import { useUniversalLeaderAnalytics } from "@/app/services/universal-analytics"
 import { getLeaderBiography } from "@/app/data/leader-biographies"
 
 interface Official {
@@ -61,7 +61,7 @@ export function OfficialRating({
   const [showBio, setShowBio] = useState(false)
 
   // Get real-time analytics for this leader
-  const { data: leaderAnalytics, isLoading: analyticsLoading } = useLeaderAnalytics(official.id)
+  const { data: leaderAnalytics, isLoading: analyticsLoading } = useUniversalLeaderAnalytics(official.id)
 
   // Get biography data with fallback
   const biography = getLeaderBiography(official.id) || null
