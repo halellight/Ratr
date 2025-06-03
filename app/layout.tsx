@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     },
   ],
   icons: {
-   icon: "/favicon.ico",
+    icon: "/favicon.ico",
   },
   creator: "Praise Ibe",
   openGraph: {
@@ -46,31 +46,31 @@ export const metadata: Metadata = {
     locale: "en_US",
     type: "website",
   },
-
 }
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-};
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Analytics/>
-        <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900,300&display=swap" rel="stylesheet" />
+        <Analytics />
+        <link
+          href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900,300&display=swap"
+          rel="stylesheet"
+        />
       </head>
-      
       <body className="font-satoshi">
         <UniversalAnalyticsHeader />
-          <UniversalAnalyticsProvider>
-            <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-              {children}
-            </ThemeProvider>
-          <UniversalAnalyticsProvider
+        <UniversalAnalyticsProvider>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+            {children}
+          </ThemeProvider>
+        </UniversalAnalyticsProvider>
       </body>
-      
     </html>
   )
 }

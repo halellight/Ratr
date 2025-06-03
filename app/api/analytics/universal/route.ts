@@ -45,7 +45,9 @@ const universalAnalyticsData = {
  */
 export async function GET(request: Request) {
   try {
-    const url = new URL(request.url)
+    // Ensure request.url is fully qualified
+    const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+    const url = new URL(request.url, base)
     const since = url.searchParams.get("since")
 
     console.log(`🌍 GET /api/analytics/universal - since: ${since}`)
