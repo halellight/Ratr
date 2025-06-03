@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import { redisClient } from "../services/redis-client"
 
 export type SharePlatform = "twitter" | "facebook" | "whatsapp" | "copy" | "native" | "other"
 
@@ -34,15 +35,19 @@ export interface RealTimeAnalytics {
   activeUsers: number
 }
 
-// Global analytics store with localStorage persistence
+// Global analytics store with Redis + localStorage persistence
 class AnalyticsStore {
   private data: RealTimeAnalytics
   private listeners: Set<(data: RealTimeAnalytics) => void> = new Set()
   private isInitialized = false
+  private isRedisAvailable = false
+  private pollingInterval: NodeJS.Timeout | null = null
+  private readonly REDIS_KEY = "nigeria:cabinet:analytics"
+  private readonly POLLING_INTERVAL = 5000 // 5 seconds
 
   constructor() {
     this.data = this.getInitialData()
-    this.loadFromStorage()
+    this.initialize()
   }
 
   private getInitialData(): RealTimeAnalytics {
@@ -56,6 +61,25 @@ class AnalyticsStore {
     }
   }
 
+  private async initialize() {
+    // Try to load from localStorage first for immediate display
+    this.loadFromStorage()
+
+    // Check if Redis is available
+    this.isRedisAvailable = await redisClient.isAvailable()
+
+    if (this.isRedisAvailable) {
+      console.log("🔄 Redis available, loading global data")
+      await this.loadFromRedis()
+      this.startPolling()
+    } else {
+      console.warn("⚠️ Redis not available, using localStorage only")
+    }
+
+    this.isInitialized = true
+    this.notify()
+  }
+
   private loadFromStorage() {
     if (typeof window === "undefined") return
 
@@ -64,12 +88,28 @@ class AnalyticsStore {
       if (stored) {
         const parsed = JSON.parse(stored)
         this.data = { ...this.getInitialData(), ...parsed }
-        console.log("📊 Loaded analytics from storage:", this.data)
+        console.log("📊 Loaded analytics from localStorage:", this.data)
       }
     } catch (error) {
-      console.error("Failed to load analytics from storage:", error)
+      console.error("Failed to load analytics from localStorage:", error)
     }
-    this.isInitialized = true
+  }
+
+  private async loadFromRedis() {
+    try {
+      const redisData = await redisClient.get(this.REDIS_KEY)
+      if (redisData) {
+        // Merge with initial data to ensure all fields exist
+        this.data = { ...this.getInitialData(), ...JSON.parse(redisData) }
+        console.log("📊 Loaded analytics from Redis:", this.data)
+        this.saveToStorage() // Sync to localStorage
+      } else {
+        // If no data in Redis yet, save our current data
+        await this.saveToRedis()
+      }
+    } catch (error) {
+      console.error("Failed to load analytics from Redis:", error)
+    }
   }
 
   private saveToStorage() {
@@ -78,7 +118,51 @@ class AnalyticsStore {
     try {
       localStorage.setItem("nigerian-cabinet-analytics", JSON.stringify(this.data))
     } catch (error) {
-      console.error("Failed to save analytics to storage:", error)
+      console.error("Failed to save analytics to localStorage:", error)
+    }
+  }
+
+  private async saveToRedis() {
+    if (!this.isRedisAvailable) return
+
+    try {
+      await redisClient.set(this.REDIS_KEY, JSON.stringify(this.data))
+      console.log("📊 Saved analytics to Redis")
+    } catch (error) {
+      console.error("Failed to save analytics to Redis:", error)
+      this.isRedisAvailable = false
+    }
+  }
+
+  private startPolling() {
+    if (this.pollingInterval) return
+
+    this.pollingInterval = setInterval(async () => {
+      if (!this.isRedisAvailable) return
+
+      try {
+        const redisData = await redisClient.get(this.REDIS_KEY)
+        if (redisData) {
+          const parsedData = JSON.parse(redisData)
+
+          // Only update if the data is newer
+          if (parsedData.lastUpdated > this.data.lastUpdated) {
+            this.data = parsedData
+            this.saveToStorage() // Sync to localStorage
+            this.notify()
+            console.log("📊 Updated analytics from Redis polling")
+          }
+        }
+      } catch (error) {
+        console.error("Failed to poll analytics from Redis:", error)
+      }
+    }, this.POLLING_INTERVAL)
+  }
+
+  private stopPolling() {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval)
+      this.pollingInterval = null
     }
   }
 
@@ -96,8 +180,6 @@ class AnalyticsStore {
   }
 
   private notify() {
-    this.data.lastUpdated = new Date().toISOString()
-    this.saveToStorage()
     this.listeners.forEach((callback) => {
       try {
         callback(this.data)
@@ -107,7 +189,7 @@ class AnalyticsStore {
     })
   }
 
-  trackRating(officialId: string, rating: number) {
+  async trackRating(officialId: string, rating: number) {
     this.data.totalRatings += 1
 
     if (!this.data.leaderRatings[officialId]) {
@@ -136,11 +218,19 @@ class AnalyticsStore {
       current.performanceMetrics.trendsUp = newAverage > 3
     }
 
+    this.data.lastUpdated = new Date().toISOString()
+
+    // Save to both storage mechanisms
+    this.saveToStorage()
+    if (this.isRedisAvailable) {
+      await this.saveToRedis()
+    }
+
     console.log(`✅ Rating tracked: ${officialId} = ${rating}/5 (Total: ${this.data.totalRatings})`)
     this.notify()
   }
 
-  trackShare(platform: SharePlatform) {
+  async trackShare(platform: SharePlatform) {
     this.data.totalShares += 1
 
     const existingShare = this.data.shareAnalytics.find((s) => s.platform === platform)
@@ -159,6 +249,14 @@ class AnalyticsStore {
       })
     }
 
+    this.data.lastUpdated = new Date().toISOString()
+
+    // Save to both storage mechanisms
+    this.saveToStorage()
+    if (this.isRedisAvailable) {
+      await this.saveToRedis()
+    }
+
     console.log(`📊 Share tracked: ${platform} (Total: ${this.data.totalShares})`)
     this.notify()
   }
@@ -167,16 +265,30 @@ class AnalyticsStore {
     return this.data
   }
 
-  reset() {
+  async reset() {
     this.data = this.getInitialData()
     this.saveToStorage()
+    if (this.isRedisAvailable) {
+      await this.saveToRedis()
+    }
     this.notify()
     console.log("🔄 Analytics data reset")
+  }
+
+  cleanup() {
+    this.stopPolling()
   }
 }
 
 // Global instance
 const analyticsStore = new AnalyticsStore()
+
+// Cleanup on window unload
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => {
+    analyticsStore.cleanup()
+  })
+}
 
 interface UseRealTimeAnalyticsOptions {
   autoStart?: boolean
@@ -199,7 +311,7 @@ export function useRealTimeAnalytics(options: UseRealTimeAnalyticsOptions = {}) 
   const trackRating = useCallback(
     async (officialId: string, rating: number) => {
       try {
-        analyticsStore.trackRating(officialId, rating)
+        await analyticsStore.trackRating(officialId, rating)
         setHasNewData(true)
         setTimeout(() => setHasNewData(false), 3000)
       } catch (err) {
@@ -214,7 +326,7 @@ export function useRealTimeAnalytics(options: UseRealTimeAnalyticsOptions = {}) 
   const trackShare = useCallback(
     async (platform: SharePlatform) => {
       try {
-        analyticsStore.trackShare(platform)
+        await analyticsStore.trackShare(platform)
         setHasNewData(true)
         setTimeout(() => setHasNewData(false), 3000)
       } catch (err) {
@@ -272,8 +384,8 @@ export function useRealTimeAnalytics(options: UseRealTimeAnalyticsOptions = {}) 
     trackRating,
     trackShare,
     refresh,
-    startPolling: () => {}, // No-op since we don't need polling
-    stopPolling: () => {}, // No-op since we don't need polling
+    startPolling: () => {}, // No-op since polling is handled internally
+    stopPolling: () => {}, // No-op since polling is handled internally
   }
 }
 
