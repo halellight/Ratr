@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState } from "react"
+import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from "react"
 import {
   universalAnalyticsStore,
   type UniversalAnalytics,
@@ -19,35 +19,34 @@ interface UniversalAnalyticsContextType {
   refresh: () => Promise<void>
 }
 
-const UniversalAnalyticsContext = createContext<UniversalAnalyticsContextType | null>(null)
+const UniversalAnalyticsContext = createContext<UniversalAnalyticsContextType | undefined>(undefined)
 
-export function UniversalAnalyticsProvider({ children }: { children: React.ReactNode }) {
+export function UniversalAnalyticsProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<UniversalAnalytics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [hasNewData, setHasNewData] = useState(false)
 
-  const lastUpdateRef = React.useRef<string | null>(null)
+  const lastUpdateRef = useRef<string | null>(null)
 
   useEffect(() => {
     console.log("🌍 Universal Analytics Provider initialized")
 
-    // Subscribe to universal data updates
+    // Subscribe to data updates
     const unsubscribeData = universalAnalyticsStore.subscribe((newData) => {
       setData(newData)
       setIsLoading(false)
 
-      // Detect new data
       const isNewUpdate = lastUpdateRef.current !== newData.lastUpdated
       if (isNewUpdate && lastUpdateRef.current !== null) {
         setHasNewData(true)
+        // Reset hasNewData after 3 seconds
         setTimeout(() => setHasNewData(false), 3000)
       }
-
       lastUpdateRef.current = newData.lastUpdated
     })
 
-    // Subscribe to errors
+    // Subscribe to error events
     const unsubscribeErrors = universalAnalyticsStore.subscribeToErrors((err) => {
       setError(err)
       setTimeout(() => setError(null), 5000)
@@ -59,6 +58,7 @@ export function UniversalAnalyticsProvider({ children }: { children: React.React
     }
   }, [])
 
+  // Track a rating event
   const trackRating = async (officialId: string, rating: number) => {
     try {
       await universalAnalyticsStore.trackRating(officialId, rating)
@@ -67,6 +67,7 @@ export function UniversalAnalyticsProvider({ children }: { children: React.React
     }
   }
 
+  // Track a share event
   const trackShare = async (platform: string) => {
     try {
       await universalAnalyticsStore.trackShare(platform as any)
@@ -75,14 +76,16 @@ export function UniversalAnalyticsProvider({ children }: { children: React.React
     }
   }
 
+  // Refresh analytics data manually
   const refresh = async () => {
     try {
       await universalAnalyticsStore.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err : new Error("Failed to refresh"))
+      setError(err instanceof Error ? err : new Error("Failed to refresh analytics data"))
     }
   }
 
+  // Generate summary from the latest data
   const summary = data ? universalAnalyticsStore.getSummary() : null
 
   const value: UniversalAnalyticsContextType = {
@@ -97,7 +100,11 @@ export function UniversalAnalyticsProvider({ children }: { children: React.React
     refresh,
   }
 
-  return <UniversalAnalyticsContext.Provider value={value}>{children}</UniversalAnalyticsContext.Provider>
+  return (
+    <UniversalAnalyticsContext.Provider value={value}>
+      {children}
+    </UniversalAnalyticsContext.Provider>
+  )
 }
 
 export function useUniversalAnalyticsContext() {

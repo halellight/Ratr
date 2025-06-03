@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 /**
- * Universal Analytics Service v20 - Fixed Redis Integration
+ * Universal Analytics Service v21 - Fixed Exports and Share Tracking
  *
- * This service ensures votes are properly logged to Redis storage
- * and that ALL users see the SAME analytics data.
+ * This service ensures votes are properly logged and that ALL users see the SAME analytics data.
+ * Uses real data only, with proper fallback mechanisms.
  */
 
 export type SharePlatform = "twitter" | "facebook" | "whatsapp" | "copy" | "native" | "other"
@@ -42,18 +42,30 @@ export interface UniversalAnalytics {
   serverTime: string
   version: string
   globalId: string
+  isRedisConnected: boolean
 }
 
-// Universal analytics store with proper API integration
+export interface AnalyticsSummary {
+  totalShares: number
+  totalRatings: number
+  mostPopular: string | null
+  trending: SharePlatform[]
+  lastUpdate: string | null
+  activeUsers: number
+  isConnected: boolean
+}
+
+// Universal analytics store with proper error handling
 class UniversalAnalyticsStore {
   private data: UniversalAnalytics
   private listeners: Set<(data: UniversalAnalytics) => void> = new Set()
   private errorListeners: Set<(error: Error) => void> = new Set()
   private isInitialized = false
   private pollingInterval: NodeJS.Timeout | null = null
-  private readonly POLLING_INTERVAL = 3000 // 3 seconds
+  private readonly POLLING_INTERVAL = 5000 // 5 seconds
   private lastSyncTime = 0
   private syncInProgress = false
+  private isServerAvailable = false
 
   constructor() {
     this.data = this.getInitialData()
@@ -76,32 +88,58 @@ class UniversalAnalyticsStore {
       lastUpdated: new Date().toISOString(),
       activeUsers: 1,
       serverTime: new Date().toISOString(),
-      version: "20",
+      version: "21",
       globalId: "universal",
+      isRedisConnected: false,
     }
   }
 
   private async initialize() {
-    console.log("🌍 Initializing Universal Analytics Store v20")
+    console.log("🌍 Initializing Universal Analytics Store v21")
 
     // Load from localStorage immediately
     this.loadFromStorage()
 
-    // Load from server/Redis
-    await this.loadFromServer()
+    // Test server connection
+    await this.testServerConnection()
 
-    // Start polling for updates
-    this.startPolling()
+    if (this.isServerAvailable) {
+      // Load from server
+      await this.loadFromServer()
+      // Start polling for updates
+      this.startPolling()
+    } else {
+      console.warn("⚠️ Server not available - using localStorage only mode")
+    }
 
     this.isInitialized = true
     this.notifyListeners()
+  }
+
+  private async testServerConnection(): Promise<void> {
+    try {
+      console.log("🔍 Testing server connection...")
+
+      const response = await fetch("/api/analytics/universal", {
+        method: "GET",
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      })
+
+      this.isServerAvailable = response.ok
+      console.log(`🔍 Server connection test: ${this.isServerAvailable ? "✅ Available" : "❌ Unavailable"}`)
+    } catch (error) {
+      console.warn("⚠️ Server connection test failed:", error)
+      this.isServerAvailable = false
+    }
   }
 
   private loadFromStorage() {
     if (typeof window === "undefined") return
 
     try {
-      const stored = localStorage.getItem("universal-analytics-v20")
+      const stored = localStorage.getItem("universal-analytics-v21")
       if (stored) {
         const parsed = JSON.parse(stored)
         this.data = { ...this.getInitialData(), ...parsed }
@@ -116,11 +154,11 @@ class UniversalAnalyticsStore {
   }
 
   private async loadFromServer() {
-    if (this.syncInProgress) return
+    if (this.syncInProgress || !this.isServerAvailable) return
     this.syncInProgress = true
 
     try {
-      console.log("🔄 Loading analytics from server/Redis...")
+      console.log("🔄 Loading analytics from server...")
 
       const response = await fetch("/api/analytics/universal", {
         method: "GET",
@@ -135,23 +173,26 @@ class UniversalAnalyticsStore {
           this.data = {
             ...this.getInitialData(),
             ...result.data,
-            version: "20",
+            version: "21",
+            isRedisConnected: result.data.isRedisConnected || false,
           }
 
-          console.log("✅ Loaded from server/Redis:", {
+          console.log("✅ Loaded from server:", {
             totalRatings: this.data.totalRatings,
             totalShares: this.data.totalShares,
-            lastUpdated: this.data.lastUpdated,
+            isRedisConnected: this.data.isRedisConnected,
           })
 
           this.saveToStorage()
           this.lastSyncTime = Date.now()
         }
       } else {
-        console.warn("Failed to load from server:", response.status, response.statusText)
+        console.warn("Server response not ok:", response.status, response.statusText)
+        this.isServerAvailable = false
       }
     } catch (error) {
       console.error("❌ Failed to load from server:", error)
+      this.isServerAvailable = false
       this.notifyError(new Error("Failed to sync with server"))
     } finally {
       this.syncInProgress = false
@@ -162,45 +203,20 @@ class UniversalAnalyticsStore {
     if (typeof window === "undefined") return
 
     try {
-      localStorage.setItem("universal-analytics-v20", JSON.stringify(this.data))
+      localStorage.setItem("universal-analytics-v21", JSON.stringify(this.data))
     } catch (error) {
       console.error("Failed to save to localStorage:", error)
     }
   }
 
-  private async saveToServer() {
-    try {
-      console.log("💾 Saving analytics to server/Redis...")
-
-      const response = await fetch("/api/analytics/universal", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          data: this.data,
-        }),
-      })
-
-      if (response.ok) {
-        console.log("✅ Saved to server/Redis successfully")
-        this.lastSyncTime = Date.now()
-      } else {
-        console.warn("Failed to save to server:", response.status)
-      }
-    } catch (error) {
-      console.error("❌ Failed to save to server:", error)
-    }
-  }
-
   private startPolling() {
-    if (this.pollingInterval) return
+    if (this.pollingInterval || !this.isServerAvailable) return
 
     this.pollingInterval = setInterval(async () => {
       if (this.syncInProgress) return
 
       try {
-        const response = await fetch(`/api/analytics/universal?since=${this.data.lastUpdated}`, {
+        const response = await fetch("/api/analytics/universal?since=" + encodeURIComponent(this.data.lastUpdated), {
           method: "GET",
           headers: {
             "Cache-Control": "no-cache",
@@ -220,7 +236,8 @@ class UniversalAnalyticsStore {
               this.data = {
                 ...this.getInitialData(),
                 ...result.data,
-                version: "20",
+                version: "21",
+                isRedisConnected: result.data.isRedisConnected || false,
               }
 
               this.saveToStorage()
@@ -231,9 +248,15 @@ class UniversalAnalyticsStore {
               })
             }
           }
+        } else {
+          console.warn("Polling failed:", response.status)
+          this.isServerAvailable = false
+          this.stopPolling()
         }
       } catch (error) {
         console.error("Polling error:", error)
+        this.isServerAvailable = false
+        this.stopPolling()
       }
     }, this.POLLING_INTERVAL)
   }
@@ -284,58 +307,63 @@ class UniversalAnalyticsStore {
     })
   }
 
-  // Track rating with proper Redis logging
+  // Track rating with proper error handling
   async trackRating(officialId: string, rating: number) {
     console.log(`🗳️ Tracking vote: ${officialId} = ${rating}/5`)
 
-    try {
-      // Send to server/Redis immediately
-      const response = await fetch("/api/analytics/universal", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          type: "rating",
-          data: {
-            officialId,
-            rating,
+    if (this.isServerAvailable) {
+      try {
+        // Send to server
+        const response = await fetch("/api/analytics/universal", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        }),
-      })
+          body: JSON.stringify({
+            type: "rating",
+            data: {
+              officialId,
+              rating,
+            },
+          }),
+        })
 
-      if (response.ok) {
-        const result = await response.json()
-        if (result.success && result.data) {
-          // Update local data with server response
-          this.data = {
-            ...this.getInitialData(),
-            ...result.data,
-            version: "20",
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data) {
+            // Update local data with server response
+            this.data = {
+              ...this.getInitialData(),
+              ...result.data,
+              version: "21",
+              isRedisConnected: result.data.isRedisConnected || false,
+            }
+
+            this.saveToStorage()
+            this.notifyListeners()
+
+            console.log(`✅ Vote logged successfully: ${officialId} = ${rating}/5`)
+            console.log(`📊 New totals - Ratings: ${this.data.totalRatings}, Shares: ${this.data.totalShares}`)
+            return
           }
-
-          this.saveToStorage()
-          this.notifyListeners()
-
-          console.log(`✅ Vote logged to Redis: ${officialId} = ${rating}/5`)
-          console.log(`📊 New totals - Ratings: ${this.data.totalRatings}, Shares: ${this.data.totalShares}`)
+        } else {
+          throw new Error(`Server error: ${response.status}`)
         }
-      } else {
-        throw new Error(`Server error: ${response.status}`)
+      } catch (error) {
+        console.error("❌ Failed to log vote to server:", error)
+        this.isServerAvailable = false
+        // Fall through to local storage
       }
-    } catch (error) {
-      console.error("❌ Failed to log vote to Redis:", error)
-
-      // Fallback: update local data only
-      this.updateLocalRating(officialId, rating)
-      this.notifyError(new Error("Vote saved locally only - server unavailable"))
     }
+
+    // Fallback: update local data only
+    console.log(`📱 Fallback: updating local data for ${officialId} = ${rating}/5`)
+    this.updateLocalRating(officialId, rating)
+    this.notifyError(new Error("Vote saved locally only - server unavailable"))
   }
 
-  // Fallback local update
+  // Fallback local update (no dummy data)
   private updateLocalRating(officialId: string, rating: number) {
-    console.log(`📱 Fallback: updating local data for ${officialId} = ${rating}/5`)
-
     this.data.totalRatings += 1
 
     if (!this.data.leaderRatings[officialId]) {
@@ -348,7 +376,7 @@ class UniversalAnalyticsStore {
         performanceMetrics: {
           approvalRating: Math.round((rating / 5) * 100),
           trendsUp: rating > 3,
-          monthlyChange: Math.random() * 5,
+          monthlyChange: 0, // Real data only
         },
       }
     } else {
@@ -362,6 +390,7 @@ class UniversalAnalyticsStore {
       current.lastUpdated = new Date().toISOString()
       current.performanceMetrics.approvalRating = Math.round((newAverage / 5) * 100)
       current.performanceMetrics.trendsUp = newAverage > 3
+      // monthlyChange stays 0 for real data
     }
 
     this.data.lastUpdated = new Date().toISOString()
@@ -369,59 +398,100 @@ class UniversalAnalyticsStore {
     this.notifyListeners()
   }
 
-  // Track share with proper Redis logging
+  // Track share
   async trackShare(platform: SharePlatform) {
     console.log(`📊 Tracking share: ${platform}`)
 
-    try {
-      const response = await fetch("/api/analytics/universal", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          type: "share",
-          data: {
-            platform,
+    if (this.isServerAvailable) {
+      try {
+        const response = await fetch("/api/analytics/universal", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        }),
-      })
+          body: JSON.stringify({
+            type: "share",
+            data: {
+              platform,
+            },
+          }),
+        })
 
-      if (response.ok) {
-        const result = await response.json()
-        if (result.success && result.data) {
-          this.data = {
-            ...this.getInitialData(),
-            ...result.data,
-            version: "20",
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data) {
+            this.data = {
+              ...this.getInitialData(),
+              ...result.data,
+              version: "21",
+              isRedisConnected: result.data.isRedisConnected || false,
+            }
+
+            this.saveToStorage()
+            this.notifyListeners()
+
+            console.log(`✅ Share logged: ${platform}`)
+            return
           }
-
-          this.saveToStorage()
-          this.notifyListeners()
-
-          console.log(`✅ Share logged to Redis: ${platform}`)
         }
-      } else {
-        throw new Error(`Server error: ${response.status}`)
+      } catch (error) {
+        console.error("❌ Failed to log share:", error)
+        this.isServerAvailable = false
       }
-    } catch (error) {
-      console.error("❌ Failed to log share to Redis:", error)
-      this.notifyError(new Error("Share tracking failed"))
     }
+
+    // Fallback: local update
+    this.data.totalShares += 1
+    const shareIndex = this.data.shareAnalytics.findIndex((s) => s.platform === platform)
+    if (shareIndex >= 0) {
+      this.data.shareAnalytics[shareIndex].count += 1
+      this.data.shareAnalytics[shareIndex].lastShared = new Date().toISOString()
+      this.data.shareAnalytics[shareIndex].trend = "up"
+      // velocity stays 0 for real data
+    }
+
+    this.data.lastUpdated = new Date().toISOString()
+    this.saveToStorage()
+    this.notifyListeners()
   }
 
   getData(): UniversalAnalytics {
     return this.data
   }
 
+  getSummary(): AnalyticsSummary {
+    const trending = this.data.shareAnalytics
+      .filter((item) => item.trend === "up")
+      .sort((a, b) => (b.velocity || 0) - (a.velocity || 0))
+      .map((item) => item.platform as SharePlatform)
+
+    const mostPopular =
+      this.data.totalShares > 0
+        ? this.data.shareAnalytics.reduce((max, item) => (item.count > max.count ? item : max)).platform
+        : null
+
+    return {
+      totalShares: this.data.totalShares,
+      totalRatings: this.data.totalRatings,
+      mostPopular,
+      trending,
+      lastUpdate: this.data.lastUpdated,
+      activeUsers: this.data.activeUsers,
+      isConnected: this.isServerAvailable,
+    }
+  }
+
   async refresh() {
-    console.log("🔄 Forcing refresh from server/Redis")
-    await this.loadFromServer()
-    this.notifyListeners()
+    console.log("🔄 Forcing refresh")
+    await this.testServerConnection()
+    if (this.isServerAvailable) {
+      await this.loadFromServer()
+      this.notifyListeners()
+    }
   }
 
   isConnected(): boolean {
-    return Date.now() - this.lastSyncTime < 30000 // Connected if synced within 30 seconds
+    return this.isServerAvailable && Date.now() - this.lastSyncTime < 30000
   }
 
   getLastSyncTime(): number {
@@ -431,28 +501,36 @@ class UniversalAnalyticsStore {
   async resetAllData() {
     console.log("🗑️ Resetting all analytics data")
 
-    try {
-      const response = await fetch("/api/analytics/universal", {
-        method: "DELETE",
-      })
+    if (this.isServerAvailable) {
+      try {
+        const response = await fetch("/api/analytics/universal", {
+          method: "DELETE",
+        })
 
-      if (response.ok) {
-        const result = await response.json()
-        if (result.success && result.data) {
-          this.data = {
-            ...this.getInitialData(),
-            ...result.data,
-            version: "20",
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data) {
+            this.data = {
+              ...this.getInitialData(),
+              ...result.data,
+              version: "21",
+            }
+
+            this.saveToStorage()
+            this.notifyListeners()
+            console.log("✅ Analytics data reset successfully")
+            return
           }
-
-          this.saveToStorage()
-          this.notifyListeners()
-          console.log("✅ Analytics data reset successfully")
         }
+      } catch (error) {
+        console.error("❌ Failed to reset analytics:", error)
       }
-    } catch (error) {
-      console.error("❌ Failed to reset analytics:", error)
     }
+
+    // Fallback: reset local data
+    this.data = this.getInitialData()
+    this.saveToStorage()
+    this.notifyListeners()
   }
 
   cleanup() {
@@ -542,6 +620,7 @@ export function useUniversalAnalytics() {
     hasNewData,
     isConnected: universalAnalyticsStore.isConnected(),
     lastSyncTime: universalAnalyticsStore.getLastSyncTime(),
+    summary: data ? universalAnalyticsStore.getSummary() : null,
     trackRating,
     trackShare,
     refresh,
@@ -560,7 +639,8 @@ export function useUniversalAnalyticsData() {
     activeUsers: data?.activeUsers || 0,
     lastUpdated: data?.lastUpdated || null,
     serverTime: data?.serverTime || null,
-    version: data?.version || "20",
+    version: data?.version || "21",
+    isRedisConnected: data?.isRedisConnected || false,
     isLoading,
     error,
     isConnected,
@@ -575,6 +655,38 @@ export function useUniversalLeaderAnalytics(officialId: string) {
     data: leaderData,
     isLoading: !data,
     error: null,
+  }
+}
+
+// Hook for universal share tracking - THIS WAS MISSING!
+export function useUniversalShareTracking() {
+  const { trackShare, isConnected, error } = useUniversalAnalytics()
+
+  const trackShareWithFeedback = useCallback(
+    async (platform: SharePlatform) => {
+      console.log(`📊 Share tracking hook: ${platform}`)
+
+      try {
+        await trackShare(platform)
+
+        // Provide user feedback
+        if (typeof window !== "undefined" && "navigator" in window && "vibrate" in navigator) {
+          navigator.vibrate(50)
+        }
+
+        console.log(`✅ Share tracked successfully: ${platform}`)
+      } catch (err) {
+        console.error(`❌ Failed to track share: ${platform}`, err)
+        throw err
+      }
+    },
+    [trackShare],
+  )
+
+  return {
+    trackShare: trackShareWithFeedback,
+    isConnected,
+    error,
   }
 }
 

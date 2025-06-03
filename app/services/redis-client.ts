@@ -1,78 +1,68 @@
 "use client"
 
-// Simple Redis client that works directly from the browser
-// This uses the KV REST API directly to avoid server-side issues
-
 export class RedisClient {
   private baseUrl: string
   private token: string
   private fallbackMode = false
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_KV_REST_API_URL || process.env.KV_REST_API_URL || ""
-    this.token = process.env.NEXT_PUBLIC_KV_REST_API_TOKEN || process.env.KV_REST_API_TOKEN || ""
+    this.baseUrl = process.env.NEXT_PUBLIC_KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || ""
+    this.token = process.env.NEXT_PUBLIC_KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || ""
 
-    // Check if we have valid credentials
     if (!this.baseUrl || !this.token) {
       console.warn("⚠️ Redis credentials not available, using fallback mode")
       this.fallbackMode = true
     }
   }
 
-  // Helper to make authenticated requests to KV REST API
   private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
-    if (this.fallbackMode) {
-      throw new Error("Redis not available")
-    }
+    if (this.fallbackMode) throw new Error("Redis not available")
 
     try {
-      const url = `${this.baseUrl}${endpoint}`
-      const response = await fetch(url, {
+      const url = `${this.baseUrl}${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`
+      const res = await fetch(url, {
         ...options,
         headers: {
-          ...options.headers,
           Authorization: `Bearer ${this.token}`,
           "Content-Type": "application/json",
+          ...options.headers,
         },
       })
 
-      if (!response.ok) {
-        throw new Error(`Redis API error: ${response.status} ${response.statusText}`)
-      }
-
-      return await response.json()
+      if (!res.ok) throw new Error(`Redis API error: ${res.status} ${res.statusText}`)
+      return await res.json()
     } catch (error) {
       console.error("Redis request failed:", error)
       throw error
     }
   }
 
-  // Get a value
+  // Simple GET
   async get(key: string): Promise<any> {
     try {
       const result = await this.makeRequest(`/get/${key}`)
       return result.result
     } catch (error) {
-      console.warn(`Failed to get ${key} from Redis:`, error)
+      console.warn(`Failed to get ${key}:`, error)
       return null
     }
   }
 
-  // Set a value
+  // Simple SET
   async set(key: string, value: any): Promise<boolean> {
     try {
-      await this.makeRequest(`/set/${key}`, {
+      const result = await this.makeRequest(`/set/${key}`, {
         method: "POST",
-        body: JSON.stringify({ value }),
+        body: JSON.stringify({ value: typeof value === "string" ? value : JSON.stringify(value) }),
       })
-      return true
+      return !!result
     } catch (error) {
-      console.warn(`Failed to set ${key} in Redis:`, error)
+      console.warn(`Failed to set ${key}:`, error)
       return false
     }
   }
 
-  // Increment a value
+  // INCR
   async incr(key: string): Promise<number> {
     try {
       const result = await this.makeRequest(`/incr/${key}`, {
@@ -80,59 +70,59 @@ export class RedisClient {
       })
       return result.result
     } catch (error) {
-      console.warn(`Failed to increment ${key} in Redis:`, error)
+      console.warn(`Failed to increment ${key}:`, error)
       return 0
     }
   }
 
-  // Hash operations
+  // HGET
   async hget(key: string, field: string): Promise<any> {
     try {
       const result = await this.makeRequest(`/hget/${key}/${field}`)
       return result.result
     } catch (error) {
-      console.warn(`Failed to hget ${key}/${field} from Redis:`, error)
+      console.warn(`Failed to hget ${key}/${field}:`, error)
       return null
     }
   }
 
+  // HSET
   async hset(key: string, field: string, value: any): Promise<boolean> {
     try {
-      await this.makeRequest(`/hset/${key}/${field}`, {
+      const result = await this.makeRequest(`/hset/${key}/${field}`, {
         method: "POST",
-        body: JSON.stringify({ value }),
+        body: JSON.stringify({ value: typeof value === "string" ? value : JSON.stringify(value) }),
       })
-      return true
+      return !!result
     } catch (error) {
-      console.warn(`Failed to hset ${key}/${field} in Redis:`, error)
+      console.warn(`Failed to hset ${key}/${field}:`, error)
       return false
     }
   }
 
+  // HGETALL
   async hgetall(key: string): Promise<Record<string, any>> {
     try {
       const result = await this.makeRequest(`/hgetall/${key}`)
       return result.result || {}
     } catch (error) {
-      console.warn(`Failed to hgetall ${key} from Redis:`, error)
+      console.warn(`Failed to hgetall ${key}:`, error)
       return {}
     }
   }
 
-  // Check if Redis is available
+  // Availability check using `get _test`
   async isAvailable(): Promise<boolean> {
     if (this.fallbackMode) return false
 
     try {
-      await this.makeRequest("/ping")
+      await this.get("_test")
       return true
-    } catch (error) {
-      console.warn("Redis not available:", error)
+    } catch {
       this.fallbackMode = true
       return false
     }
   }
 }
 
-// Export a singleton instance
 export const redisClient = new RedisClient()

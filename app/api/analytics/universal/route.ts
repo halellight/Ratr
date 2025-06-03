@@ -1,24 +1,14 @@
 import { NextResponse } from "next/server"
-import { redisAnalytics } from "@/app/services/redis-analytics"
 
 /**
- * Universal Analytics API Endpoint v20
+ * Universal Analytics API Endpoint v21
  *
- * This endpoint provides UNIVERSAL access to analytics data.
- * ALL users see the SAME data regardless of permissions or roles.
- *
- * Features:
- * - No user authentication required for viewing data
- * - Global data accessible to everyone
- * - Real-time synchronization
- * - Consistent data format
- * - Universal tracking capabilities
- * - Proper Redis integration for data storage
+ * Fallback system that works without Redis if environment variables are missing.
+ * Uses in-memory storage as fallback, no dummy data.
  */
 
-// Global in-memory store for universal analytics
-// In production, this would be replaced with Redis/Database
-const universalAnalyticsData = {
+// In-memory fallback storage (real data only)
+let fallbackAnalyticsData = {
   totalRatings: 0,
   totalShares: 0,
   leaderRatings: {} as Record<string, any>,
@@ -33,27 +23,60 @@ const universalAnalyticsData = {
   lastUpdated: new Date().toISOString(),
   activeUsers: 1,
   serverTime: new Date().toISOString(),
-  version: "20",
+  version: "21",
   globalId: "universal",
+  isRedisConnected: false,
+}
+
+// Check if Redis is properly configured
+function isRedisConfigured(): boolean {
+  const hasUrl = process.env.KV_REST_API_URL && process.env.KV_REST_API_URL.trim() !== ""
+  const hasToken = process.env.KV_REST_API_TOKEN && process.env.KV_REST_API_TOKEN.trim() !== ""
+  return hasUrl && hasToken
+}
+
+// Try to import Redis service only if configured
+let redisAnalytics: any = null
+if (isRedisConfigured()) {
+  try {
+    const redisModule = require("@/app/services/redis-analytics")
+    redisAnalytics = redisModule.redisAnalytics
+    console.log("✅ Redis analytics service loaded")
+  } catch (error) {
+    console.warn("⚠️ Failed to load Redis analytics service:", error)
+  }
+} else {
+  console.warn("⚠️ Redis not configured - using fallback storage")
 }
 
 /**
  * GET /api/analytics/universal
- *
- * Returns universal analytics data accessible to ALL users
- * No authentication or permission checks
  */
 export async function GET(request: Request) {
   try {
-    // Ensure request.url is fully qualified
-    const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
-    const url = new URL(request.url, base)
+    const url = new URL(request.url)
     const since = url.searchParams.get("since")
 
     console.log(`🌍 GET /api/analytics/universal - since: ${since}`)
 
-    // Get analytics from Redis
-    const analyticsData = await redisAnalytics.getAnalytics()
+    let analyticsData = fallbackAnalyticsData
+
+    // Try Redis if available
+    if (redisAnalytics) {
+      try {
+        console.log("📊 Attempting to get data from Redis...")
+        analyticsData = await redisAnalytics.getAnalytics()
+        analyticsData.isRedisConnected = true
+        console.log("✅ Got data from Redis:", {
+          totalRatings: analyticsData.totalRatings,
+          totalShares: analyticsData.totalShares,
+        })
+      } catch (error) {
+        console.warn("⚠️ Redis failed, using fallback:", error)
+        analyticsData = fallbackAnalyticsData
+        analyticsData.isRedisConnected = false
+      }
+    }
 
     // Check if client has latest data
     if (since && new Date(since) >= new Date(analyticsData.lastUpdated)) {
@@ -63,26 +86,18 @@ export async function GET(request: Request) {
         headers: {
           "Cache-Control": "no-cache, must-revalidate",
           "Last-Modified": analyticsData.lastUpdated,
-          ETag: `"universal-${analyticsData.lastUpdated}"`,
         },
       })
     }
 
-    console.log(`🌍 Returning analytics data from Redis:`, {
-      totalRatings: analyticsData.totalRatings,
-      totalShares: analyticsData.totalShares,
-      leaderCount: Object.keys(analyticsData.leaderRatings).length,
-    })
+    // Update server time
+    analyticsData.serverTime = new Date().toISOString()
+    analyticsData.version = "21"
 
     return NextResponse.json({
       success: true,
-      data: {
-        ...analyticsData,
-        serverTime: new Date().toISOString(),
-        version: "20",
-        globalId: "universal",
-      },
-      message: "Analytics data from Redis",
+      data: analyticsData,
+      message: redisAnalytics ? "Data from Redis" : "Data from fallback storage",
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
@@ -100,9 +115,6 @@ export async function GET(request: Request) {
 
 /**
  * POST /api/analytics/universal
- *
- * Track events in universal analytics - accessible to ALL users
- * No authentication required for tracking
  */
 export async function POST(request: Request) {
   try {
@@ -111,21 +123,88 @@ export async function POST(request: Request) {
 
     console.log(`🌍 POST /api/analytics/universal - type: ${type}`, data)
 
+    let success = false
+
     if (type === "rating" && data?.officialId && data?.rating) {
-      // Track rating to Redis
-      console.log(`🗳️ Logging vote to Redis: ${data.officialId} = ${data.rating}/5`)
+      console.log(`🗳️ Logging vote: ${data.officialId} = ${data.rating}/5`)
 
-      await redisAnalytics.trackRating(data.officialId, data.rating)
+      // Try Redis first
+      if (redisAnalytics) {
+        try {
+          await redisAnalytics.trackRating(data.officialId, data.rating)
+          console.log(`✅ Vote logged to Redis successfully!`)
+          success = true
+        } catch (error) {
+          console.warn("⚠️ Redis tracking failed:", error)
+        }
+      }
 
-      console.log(`✅ Vote successfully logged to Redis!`)
+      // Fallback to in-memory storage
+      if (!success) {
+        console.log(`📱 Using fallback storage for vote`)
+        fallbackAnalyticsData.totalRatings += 1
+
+        if (!fallbackAnalyticsData.leaderRatings[data.officialId]) {
+          fallbackAnalyticsData.leaderRatings[data.officialId] = {
+            officialId: data.officialId,
+            averageRating: data.rating,
+            totalRatings: 1,
+            ratingDistribution: { [data.rating]: 1 },
+            lastUpdated: new Date().toISOString(),
+            performanceMetrics: {
+              approvalRating: Math.round((data.rating / 5) * 100),
+              trendsUp: data.rating > 3,
+              monthlyChange: 0, // Real data only
+            },
+          }
+        } else {
+          const current = fallbackAnalyticsData.leaderRatings[data.officialId]
+          const newTotal = current.totalRatings + 1
+          const newAverage = (current.averageRating * current.totalRatings + data.rating) / newTotal
+
+          current.averageRating = newAverage
+          current.totalRatings = newTotal
+          current.ratingDistribution[data.rating] = (current.ratingDistribution[data.rating] || 0) + 1
+          current.lastUpdated = new Date().toISOString()
+          current.performanceMetrics.approvalRating = Math.round((newAverage / 5) * 100)
+          current.performanceMetrics.trendsUp = newAverage > 3
+        }
+
+        fallbackAnalyticsData.lastUpdated = new Date().toISOString()
+        success = true
+      }
     } else if (type === "share" && data?.platform) {
-      // Track share to Redis
-      console.log(`📊 Logging share to Redis: ${data.platform}`)
+      console.log(`📊 Logging share: ${data.platform}`)
 
-      await redisAnalytics.trackShare(data.platform)
+      // Try Redis first
+      if (redisAnalytics) {
+        try {
+          await redisAnalytics.trackShare(data.platform)
+          console.log(`✅ Share logged to Redis successfully!`)
+          success = true
+        } catch (error) {
+          console.warn("⚠️ Redis share tracking failed:", error)
+        }
+      }
 
-      console.log(`✅ Share successfully logged to Redis!`)
-    } else {
+      // Fallback to in-memory storage
+      if (!success) {
+        console.log(`📱 Using fallback storage for share`)
+        fallbackAnalyticsData.totalShares += 1
+
+        const shareIndex = fallbackAnalyticsData.shareAnalytics.findIndex((s) => s.platform === data.platform)
+        if (shareIndex >= 0) {
+          fallbackAnalyticsData.shareAnalytics[shareIndex].count += 1
+          fallbackAnalyticsData.shareAnalytics[shareIndex].lastShared = new Date().toISOString()
+          fallbackAnalyticsData.shareAnalytics[shareIndex].trend = "up"
+        }
+
+        fallbackAnalyticsData.lastUpdated = new Date().toISOString()
+        success = true
+      }
+    }
+
+    if (!success) {
       return NextResponse.json(
         {
           success: false,
@@ -136,23 +215,31 @@ export async function POST(request: Request) {
       )
     }
 
-    // Get updated analytics from Redis
-    const updatedAnalytics = await redisAnalytics.getAnalytics()
+    // Get updated analytics
+    let updatedAnalytics = fallbackAnalyticsData
+    if (redisAnalytics) {
+      try {
+        updatedAnalytics = await redisAnalytics.getAnalytics()
+        updatedAnalytics.isRedisConnected = true
+      } catch (error) {
+        console.warn("⚠️ Failed to get updated Redis data:", error)
+        updatedAnalytics.isRedisConnected = false
+      }
+    }
 
-    console.log(`📊 Updated analytics from Redis:`, {
+    updatedAnalytics.serverTime = new Date().toISOString()
+    updatedAnalytics.version = "21"
+
+    console.log(`📊 Updated analytics:`, {
       totalRatings: updatedAnalytics.totalRatings,
       totalShares: updatedAnalytics.totalShares,
+      isRedisConnected: updatedAnalytics.isRedisConnected,
     })
 
     return NextResponse.json({
       success: true,
-      data: {
-        ...updatedAnalytics,
-        serverTime: new Date().toISOString(),
-        version: "20",
-        globalId: "universal",
-      },
-      message: `${type} tracked successfully to Redis`,
+      data: updatedAnalytics,
+      message: `${type} tracked successfully`,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
@@ -169,69 +256,49 @@ export async function POST(request: Request) {
 }
 
 /**
- * PUT /api/analytics/universal
- *
- * Update analytics data in Redis
- */
-export async function PUT(request: Request) {
-  try {
-    const body = await request.json()
-    const { data: analyticsData } = body
-
-    console.log(`🌍 PUT /api/analytics/universal - updating Redis data`)
-
-    // This would typically save the entire analytics object to Redis
-    // For now, we'll just return the current data
-    const currentAnalytics = await redisAnalytics.getAnalytics()
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        ...currentAnalytics,
-        serverTime: new Date().toISOString(),
-        version: "20",
-        globalId: "universal",
-      },
-      message: "Analytics data updated in Redis",
-      timestamp: new Date().toISOString(),
-    })
-  } catch (error) {
-    console.error("❌ PUT /api/analytics/universal error:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to update analytics data",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    )
-  }
-}
-
-/**
  * DELETE /api/analytics/universal
- *
- * Reset analytics data in Redis
  */
 export async function DELETE(request: Request) {
   try {
-    console.log("🗑️ DELETE /api/analytics/universal - resetting Redis data")
+    console.log("🗑️ DELETE /api/analytics/universal - resetting data")
 
-    await redisAnalytics.resetAnalytics()
+    // Reset Redis if available
+    if (redisAnalytics) {
+      try {
+        await redisAnalytics.resetAnalytics()
+        console.log("✅ Redis data reset")
+      } catch (error) {
+        console.warn("⚠️ Redis reset failed:", error)
+      }
+    }
 
-    const resetAnalytics = await redisAnalytics.getAnalytics()
+    // Reset fallback data
+    fallbackAnalyticsData = {
+      totalRatings: 0,
+      totalShares: 0,
+      leaderRatings: {},
+      shareAnalytics: [
+        { platform: "twitter", count: 0, lastShared: "", trend: "stable", velocity: 0 },
+        { platform: "facebook", count: 0, lastShared: "", trend: "stable", velocity: 0 },
+        { platform: "whatsapp", count: 0, lastShared: "", trend: "stable", velocity: 0 },
+        { platform: "copy", count: 0, lastShared: "", trend: "stable", velocity: 0 },
+        { platform: "native", count: 0, lastShared: "", trend: "stable", velocity: 0 },
+        { platform: "other", count: 0, lastShared: "", trend: "stable", velocity: 0 },
+      ],
+      lastUpdated: new Date().toISOString(),
+      activeUsers: 1,
+      serverTime: new Date().toISOString(),
+      version: "21",
+      globalId: "universal",
+      isRedisConnected: redisAnalytics !== null,
+    }
 
-    console.log("✅ Analytics data reset in Redis")
+    console.log("✅ Analytics data reset successfully")
 
     return NextResponse.json({
       success: true,
-      data: {
-        ...resetAnalytics,
-        serverTime: new Date().toISOString(),
-        version: "20",
-        globalId: "universal",
-      },
-      message: "Analytics data reset successfully in Redis",
+      data: fallbackAnalyticsData,
+      message: "Analytics data reset successfully",
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
@@ -246,4 +313,4 @@ export async function DELETE(request: Request) {
     )
   }
 }
-// This file provides a universal analytics API endpoint that allows all users to access and track analytics data without authentication.
+export const dynamic = "force-dynamic" // Always fresh data, no caching

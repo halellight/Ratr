@@ -21,7 +21,11 @@ import html2canvas from "html2canvas"
 import { SocialPreview } from "./social-preview"
 import { ShareAnalytics } from "./share-analytics"
 import Link from "next/link"
-import { useUniversalShareTracking, useUniversalAnalyticsData } from "@/app/services/universal-analytics"
+import {
+  useUniversalShareTracking,
+  useUniversalAnalyticsData,
+  type SharePlatform,
+} from "@/app/services/universal-analytics"
 
 interface Official {
   id: string
@@ -46,9 +50,16 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
   const [isGenerating, setIsGenerating] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
 
-  // Use universal analytics system
-  const { trackShare, isConnected } = useUniversalShareTracking()
-  const { totalShares, shareAnalytics, activeUsers, version } = useUniversalAnalyticsData()
+  // Use universal analytics system - FIXED IMPORT
+  const { trackShare, isConnected, error: shareError } = useUniversalShareTracking()
+  const {
+    totalShares,
+    shareAnalytics,
+    activeUsers,
+    version,
+    isRedisConnected,
+    error: analyticsError,
+  } = useUniversalAnalyticsData()
 
   const averageRating = Object.values(ratings).reduce((sum, rating) => sum + rating, 0) / Object.values(ratings).length
   const totalRatings = Object.values(ratings).length
@@ -208,7 +219,7 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
     try {
       await navigator.clipboard.writeText(shareText)
       setCopied(true)
-      await trackShare("copy")
+      await trackShare("copy" as SharePlatform)
       setTimeout(() => setCopied(false), 2000)
     } catch (error) {
       console.error("Failed to copy:", error)
@@ -216,27 +227,46 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
   }
 
   const shareToTwitter = async () => {
-    await trackShare("twitter")
-    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
-    window.open(twitterUrl, "_blank", "width=600,height=400")
+    try {
+      await trackShare("twitter" as SharePlatform)
+      const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
+      window.open(twitterUrl, "_blank", "width=600,height=400")
+    } catch (error) {
+      console.error("Failed to track Twitter share:", error)
+      // Still open the share dialog even if tracking fails
+      const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`
+      window.open(twitterUrl, "_blank", "width=600,height=400")
+    }
   }
 
   const shareToFacebook = async () => {
-    await trackShare("facebook")
-    const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareText)}`
-    window.open(facebookUrl, "_blank", "width=600,height=400")
+    try {
+      await trackShare("facebook" as SharePlatform)
+      const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareText)}`
+      window.open(facebookUrl, "_blank", "width=600,height=400")
+    } catch (error) {
+      console.error("Failed to track Facebook share:", error)
+      const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareText)}`
+      window.open(facebookUrl, "_blank", "width=600,height=400")
+    }
   }
 
   const shareToWhatsApp = async () => {
-    await trackShare("whatsapp")
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText + " " + shareUrl)}`
-    window.open(whatsappUrl, "_blank")
+    try {
+      await trackShare("whatsapp" as SharePlatform)
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText + " " + shareUrl)}`
+      window.open(whatsappUrl, "_blank")
+    } catch (error) {
+      console.error("Failed to track WhatsApp share:", error)
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText + " " + shareUrl)}`
+      window.open(whatsappUrl, "_blank")
+    }
   }
 
   const shareNatively = async () => {
     if (navigator.share) {
       try {
-        await trackShare("native")
+        await trackShare("native" as SharePlatform)
         await navigator.share({
           title: "My Nigeria Cabinet Rating",
           text: shareText,
@@ -251,9 +281,20 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
     }
   }
 
+  // Show error messages if any
+  const hasError = shareError || analyticsError
+  const errorMessage = shareError?.message || analyticsError?.message
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50 py-4 sm:py-8">
       <div className="container mx-auto px-4">
+        {/* Error Display */}
+        {hasError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-700 text-sm">⚠️ {errorMessage}</p>
+          </div>
+        )}
+
         {/* Header - Responsive */}
         <div className="text-center mb-6 sm:mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
@@ -266,7 +307,9 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
           <div className="flex items-center justify-center gap-2 mt-2">
             <span className="text-sm text-gray-500">Universal Analytics v{version}</span>
             <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
-            <span className="text-sm text-gray-500">{isConnected ? "Global Data" : "Local Data"}</span>
+            <span className="text-sm text-gray-500">
+              {isRedisConnected ? "Redis Connected" : isConnected ? "Server Connected" : "Local Mode"}
+            </span>
           </div>
         </div>
 
@@ -277,14 +320,8 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
             <div className="hidden md:block">
               <div
                 ref={cardRef}
-                className="w-full bg-white relative overflow-hidden"
-                style={{
-                  width: "1200px",
-                  height: "630px",
-                  margin: "0 auto",
-                  transform: "scale(0.8)",
-                  transformOrigin: "top center",
-                }}
+                className="w-full bg-white relative overflow-hidden "
+
               >
                 {/* Solid background instead of gradient for canvas compatibility */}
                 <div className="absolute inset-0 bg-green-700"></div>

@@ -1,15 +1,24 @@
 import { Redis } from "@upstash/redis"
 
-// Initialize Redis client - server-side only
+// Initialize Redis client with proper error handling
 let redis: Redis | null = null
 
 if (typeof window === "undefined") {
   try {
-    redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-    })
-    console.log("✅ Redis client initialized successfully")
+    const url = process.env.KV_REST_API_URL
+    const token = process.env.KV_REST_API_TOKEN
+
+    if (!url || !token || url.trim() === "" || token.trim() === "") {
+      console.warn("⚠️ Redis environment variables not properly configured")
+      console.warn("KV_REST_API_URL:", url ? "✅ Set" : "❌ Missing")
+      console.warn("KV_REST_API_TOKEN:", token ? "✅ Set" : "❌ Missing")
+    } else {
+      redis = new Redis({
+        url: url.trim(),
+        token: token.trim(),
+      })
+      console.log("✅ Redis client initialized successfully")
+    }
   } catch (error) {
     console.error("❌ Failed to initialize Redis client:", error)
   }
@@ -46,13 +55,13 @@ export interface RealTimeAnalytics {
 }
 
 class RedisAnalyticsService {
-  private readonly ANALYTICS_KEY = "nigeria:cabinet:analytics:v20"
-  private readonly LEADER_RATINGS_KEY = "nigeria:cabinet:leader_ratings:v20"
-  private readonly SHARE_ANALYTICS_KEY = "nigeria:cabinet:share_analytics:v20"
+  private readonly ANALYTICS_KEY = "nigeria:cabinet:analytics:v21"
+  private readonly LEADER_RATINGS_KEY = "nigeria:cabinet:leader_ratings:v21"
+  private readonly SHARE_ANALYTICS_KEY = "nigeria:cabinet:share_analytics:v21"
 
   private getRedis(): Redis {
     if (!redis) {
-      throw new Error("Redis client not initialized - server-side only")
+      throw new Error("Redis client not initialized - check environment variables")
     }
     return redis
   }
@@ -79,7 +88,7 @@ class RedisAnalyticsService {
     }
   }
 
-  // Track a new rating with detailed logging
+  // Track a new rating
   async trackRating(officialId: string, rating: number, userId?: string): Promise<void> {
     try {
       const redisClient = this.getRedis()
@@ -170,7 +179,6 @@ class RedisAnalyticsService {
           const averageRating = Number(data.averageRating || 0)
           const totalRatings = Number(data.totalRatings || 0)
           const approvalRating = Math.round((averageRating / 5) * 100)
-          const monthlyChange = Math.random() * 10 - 5
 
           leaderRatings[officialId] = {
             officialId,
@@ -180,8 +188,8 @@ class RedisAnalyticsService {
             lastUpdated: data.lastUpdated || new Date().toISOString(),
             performanceMetrics: {
               approvalRating,
-              trendsUp: monthlyChange > 0,
-              monthlyChange: Math.abs(monthlyChange),
+              trendsUp: averageRating > 3,
+              monthlyChange: 0, // Real data only, no dummy values
             },
           }
         }
@@ -201,10 +209,24 @@ class RedisAnalyticsService {
             count: Number(data.count || 0),
             lastShared: data.lastShared || "",
             trend: "stable" as const,
-            velocity: 0,
+            velocity: 0, // Real data only
           })
         }
       }
+
+      // Ensure all platforms are represented
+      const platforms = ["twitter", "facebook", "whatsapp", "copy", "native", "other"]
+      platforms.forEach((platform) => {
+        if (!shareAnalytics.find((s) => s.platform === platform)) {
+          shareAnalytics.push({
+            platform,
+            count: 0,
+            lastShared: "",
+            trend: "stable",
+            velocity: 0,
+          })
+        }
+      })
 
       const result = {
         totalRatings: Number(globalData?.totalRatings || 0),
@@ -212,7 +234,7 @@ class RedisAnalyticsService {
         leaderRatings,
         shareAnalytics,
         lastUpdated: globalData?.lastUpdated || new Date().toISOString(),
-        activeUsers: Math.max(1, Math.floor(Math.random() * 10) + 1),
+        activeUsers: 1, // Real count would require session tracking
       }
 
       console.log("✅ Redis: Analytics data retrieved:", {
@@ -224,15 +246,7 @@ class RedisAnalyticsService {
       return result
     } catch (error) {
       console.error("❌ Redis: Failed to get analytics:", error)
-      // Return empty analytics instead of throwing
-      return {
-        totalRatings: 0,
-        totalShares: 0,
-        leaderRatings: {},
-        shareAnalytics: [],
-        lastUpdated: new Date().toISOString(),
-        activeUsers: 0,
-      }
+      throw error
     }
   }
 
@@ -242,7 +256,7 @@ class RedisAnalyticsService {
       const redisClient = this.getRedis()
       console.log("🗑️ Redis: Resetting all analytics data...")
 
-      const keys = await redisClient.keys("nigeria:cabinet:*:v20")
+      const keys = await redisClient.keys("nigeria:cabinet:*:v21")
       if (keys.length > 0) {
         await redisClient.del(...keys)
       }
