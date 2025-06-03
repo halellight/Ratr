@@ -15,12 +15,13 @@ import {
   Check,
   BarChart3,
   Loader2,
+  Globe,
 } from "lucide-react"
 import html2canvas from "html2canvas"
 import { SocialPreview } from "./social-preview"
 import { ShareAnalytics } from "./share-analytics"
 import Link from "next/link"
-import { useShareTracking, useAnalyticsData } from "@/app/hooks/use-real-time-analytics"
+import { useUniversalShareTracking, useUniversalAnalyticsData } from "@/app/services/universal-analytics"
 
 interface Official {
   id: string
@@ -44,11 +45,10 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
   const [copied, setCopied] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
-  const [shareStats, setShareStats] = useState([]) // Declare shareStats variable
 
-  // Use our enhanced analytics system
-  const { trackShare, isConnected } = useShareTracking()
-  const { totalShares, shareAnalytics, activeUsers } = useAnalyticsData()
+  // Use universal analytics system
+  const { trackShare, isConnected } = useUniversalShareTracking()
+  const { totalShares, shareAnalytics, activeUsers, version } = useUniversalAnalyticsData()
 
   const averageRating = Object.values(ratings).reduce((sum, rating) => sum + rating, 0) / Object.values(ratings).length
   const totalRatings = Object.values(ratings).length
@@ -256,12 +256,18 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
       <div className="container mx-auto px-4">
         {/* Header - Responsive */}
         <div className="text-center mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 sm:mb-4">
-            Your Cabinet Report Card
-          </h1>
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <Globe className="w-6 h-6 text-green-600" />
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Your Cabinet Report Card</h1>
+          </div>
           <p className="text-base sm:text-lg lg:text-xl text-gray-600 px-4">
             Here's your assessment of Nigeria's leadership after 2+ years
           </p>
+          <div className="flex items-center justify-center gap-2 mt-2">
+            <span className="text-sm text-gray-500">Universal Analytics v{version}</span>
+            <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
+            <span className="text-sm text-gray-500">{isConnected ? "Global Data" : "Local Data"}</span>
+          </div>
         </div>
 
         {/* Enhanced Social Media Card - Fully Responsive */}
@@ -271,14 +277,14 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
             <div className="hidden md:block">
               <div
                 ref={cardRef}
-                className="w-full bg-white relative overflow-hidden bg-gradient-to-br from-green-600 via-green-700 to-green-800 rounded-2xl"
-                // style={{
-                //   width: "1200px",
-                //   height: "630px",
-                //   margin: "0 auto",
-                //   transform: "scale(0.8)",
-                //   transformOrigin: "top center",
-                // }}
+                className="w-full bg-white relative overflow-hidden"
+                style={{
+                  width: "1200px",
+                  height: "630px",
+                  margin: "0 auto",
+                  transform: "scale(0.8)",
+                  transformOrigin: "top center",
+                }}
               >
                 {/* Solid background instead of gradient for canvas compatibility */}
                 <div className="absolute inset-0 bg-green-700"></div>
@@ -388,7 +394,7 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                   {/* Footer */}
                   <div className="flex items-center justify-between text-green-100 mt-8">
                     <p className="text-lg">Generated on {new Date().toLocaleDateString()} • #RateYourLeaders</p>
-                    <p className="text-lg font-medium">Ratedem.vercel.app</p>
+                    <p className="text-lg font-medium">RateYourLeaders.ng</p>
                   </div>
                 </div>
               </div>
@@ -544,12 +550,15 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
           <div className="w-full max-w-2xl">
             <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Share Your Rating</h3>
+                <div className="flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-green-600" />
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900">Share Your Rating</h3>
+                </div>
                 <div className="flex gap-2">
                   <Link href="/analytics" passHref>
                     <Button variant="ghost" size="sm" className="text-gray-500 hover:text-gray-700 text-xs sm:text-sm">
                       <BarChart3 className="w-4 h-4 mr-1 sm:mr-2" />
-                      Live Analytics
+                      Universal Analytics
                     </Button>
                   </Link>
                 </div>
@@ -620,18 +629,19 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                 </Button>
               </div>
 
-              {/* Real-time Share Statistics - Responsive */}
+              {/* Universal Share Statistics - Responsive */}
               {totalShares > 0 && (
                 <div className="mt-4 text-center">
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600">
+                    <Globe className="w-4 h-4 text-green-500" />
                     <span className="font-medium">{totalShares.toLocaleString()}</span>
-                    <span>shares so far</span>
+                    <span>global shares</span>
                     <span className="hidden sm:inline">•</span>
                     <span>{activeUsers} active users</span>
                     {!isConnected && (
                       <>
                         <span className="hidden sm:inline">•</span>
-                        <span className="text-orange-600">Offline mode</span>
+                        <span className="text-orange-600">Local mode</span>
                       </>
                     )}
                   </div>

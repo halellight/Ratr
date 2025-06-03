@@ -4,6 +4,8 @@ import { ThemeProvider } from "@/components/theme-provider"
 import type { Metadata } from "next"
 import { Analytics } from "@vercel/analytics/next"
 // import { ErrorBoundary } from "./components/error-boundary"
+import { UniversalAnalyticsHeader } from "./components/universal-analytics-header"
+import { UniversalAnalyticsProvider } from "./components/universal-analytics-provider"
 
 export const metadata: Metadata = {
   title: "Rate Your Nigerian Leaders",
@@ -59,11 +61,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Analytics/>
         <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900,300&display=swap" rel="stylesheet" />
       </head>
+      
       <body className="font-satoshi">
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          {children}
-        </ThemeProvider>
+        <UniversalAnalyticsHeader />
+          <UniversalAnalyticsProvider>
+            <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+              {children}
+            </ThemeProvider>
+          <UniversalAnalyticsProvider
       </body>
+      
     </html>
   )
 }

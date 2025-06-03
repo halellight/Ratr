@@ -4,11 +4,11 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Users, Award, Share2, ChevronRight, Settings, Cloud, BarChart3 } from "lucide-react"
+import { Users, Award, Share2, ChevronRight, Settings, Cloud, BarChart3, Globe, Activity } from "lucide-react"
 import { OfficialRating } from "./components/official-rating"
 import { ResultsCard } from "./components/results-card"
 import { AdminPanel } from "./components/admin-panel"
-import { useRealTimeAnalytics, useAnalyticsData } from "./hooks/use-real-time-analytics"
+import { useUniversalAnalyticsData, useUniversalAnalytics } from "./services/universal-analytics"
 
 const defaultOfficials = [
   {
@@ -234,9 +234,9 @@ export default function Component() {
   const [cloudImages, setCloudImages] = useState<Record<string, string>>({})
   const [isLoadingImages, setIsLoadingImages] = useState(true)
 
-  // Real-time analytics
-  const { trackRating } = useRealTimeAnalytics()
-  const { totalRatings, totalShares, activeUsers, isConnected } = useAnalyticsData()
+  // Universal analytics
+  const { trackRating } = useUniversalAnalytics()
+  const { totalRatings, totalShares, activeUsers, isConnected, version } = useUniversalAnalyticsData()
 
   // Load officials data from localStorage and cloud images on component mount
   useEffect(() => {
@@ -288,7 +288,7 @@ export default function Component() {
 
   const handleRating = async (officialId: string, rating: number) => {
     try {
-      // Track rating in real-time analytics
+      // Track rating in universal analytics
       await trackRating(officialId, rating)
 
       // Update local state
@@ -339,13 +339,17 @@ export default function Component() {
             </Button>
           </div>
 
-          {/* Real-time Analytics Header */}
+          {/* Universal Analytics Status */}
           <div className="fixed top-4 left-4 z-40">
             <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border">
               <div className="flex items-center gap-4 text-sm">
                 <div className="flex items-center gap-1">
+                  <Globe className="w-4 h-4 text-blue-500" />
+                  <span className="font-medium">Universal Analytics v{version}</span>
+                </div>
+                <div className="flex items-center gap-1">
                   <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
-                  <span className="font-medium">{isConnected ? "Live" : "Offline"}</span>
+                  <span className="font-medium">{isConnected ? "Global" : "Local"}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <BarChart3 className="w-4 h-4 text-blue-500" />
@@ -356,7 +360,7 @@ export default function Component() {
                   <span>{totalShares.toLocaleString()} shares</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Users className="w-4 h-4 text-purple-500" />
+                  <Activity className="w-4 h-4 text-purple-500" />
                   <span>{activeUsers} active</span>
                 </div>
               </div>
@@ -417,17 +421,23 @@ export default function Component() {
                   </div>
                 </div>
 
-                {/* Real-time Community Stats */}
+                {/* Universal Community Stats */}
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-8">
-                  <h3 className="text-xl font-semibold mb-4">Live Community Activity</h3>
+                  <div className="flex items-center justify-center gap-2 mb-4">
+                    <Globe className="w-6 h-6 text-white" />
+                    <h3 className="text-xl font-semibold">Universal Community Activity</h3>
+                    <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
+                      v{version}
+                    </Badge>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="text-center">
                       <div className="text-3xl font-bold">{totalRatings.toLocaleString()}</div>
-                      <div className="text-green-100 text-sm">Total Ratings</div>
+                      <div className="text-green-100 text-sm">Global Ratings</div>
                     </div>
                     <div className="text-center">
                       <div className="text-3xl font-bold">{totalShares.toLocaleString()}</div>
-                      <div className="text-green-100 text-sm">Shares</div>
+                      <div className="text-green-100 text-sm">Global Shares</div>
                     </div>
                     <div className="text-center">
                       <div className="text-3xl font-bold">{activeUsers}</div>
@@ -436,10 +446,13 @@ export default function Component() {
                     <div className="text-center">
                       <div className="flex items-center justify-center gap-1">
                         <div className={`w-3 h-3 rounded-full ${isConnected ? "bg-green-400" : "bg-red-400"}`} />
-                        <div className="text-3xl font-bold">{isConnected ? "LIVE" : "OFF"}</div>
+                        <div className="text-3xl font-bold">{isConnected ? "GLOBAL" : "LOCAL"}</div>
                       </div>
-                      <div className="text-green-100 text-sm">System Status</div>
+                      <div className="text-green-100 text-sm">Data Source</div>
                     </div>
+                  </div>
+                  <div className="mt-4 text-center text-green-100 text-sm">
+                    All users see the same data • Real-time synchronization • Universal access
                   </div>
                 </div>
               </div>
@@ -565,15 +578,19 @@ export default function Component() {
   }
 
   return (
-    <ResultsCard
-      ratings={ratings}
-      officials={officialsToRate}
-      onRestart={() => {
-        setCurrentStep("intro")
-        setCurrentOfficialIndex(0)
-        setRatings({})
-        setOfficialsToRate([])
-      }}
-    />
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50">
+      <div className="container mx-auto px-4 py-8">
+        <ResultsCard
+          ratings={ratings}
+          officials={officialsToRate}
+          onRestart={() => {
+            setCurrentStep("intro")
+            setCurrentOfficialIndex(0)
+            setRatings({})
+            setOfficialsToRate([])
+          }}
+        />
+      </div>
+    </div>
   )
 }
