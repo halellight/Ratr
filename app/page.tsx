@@ -343,10 +343,7 @@ export default function Component() {
           <div className="fixed top-4 left-4 z-40">
             <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border">
               <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-1">
-                  <Globe className="w-4 h-4 text-blue-500" />
-                  <span className="font-medium">Universal Analytics v{version}</span>
-                </div>
+                
                 <div className="flex items-center gap-1">
                   <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
                   <span className="font-medium">{isConnected ? "Global" : "Local"}</span>
