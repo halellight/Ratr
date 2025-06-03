@@ -44,7 +44,6 @@ const AnalyticsPage = () => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const fromResults = searchParams.get("from") === "results"
-
   // Use the new universal analytics system for live data
   const { data, isLoading, error, hasNewData, isConnected, refresh, summary } = useUniversalAnalytics()
 
@@ -192,6 +191,7 @@ const AnalyticsPage = () => {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
         <div>
           <div className="flex items-center gap-2 mb-2">
+
             <button
               onClick={() => (fromResults ? router.back() : router.push("/"))}
               className="text-green-600 hover:text-green-700 text-sm hover:underline"
