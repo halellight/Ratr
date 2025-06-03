@@ -34,6 +34,150 @@ export interface RealTimeAnalytics {
   activeUsers: number
 }
 
+// Global analytics store with localStorage persistence
+class AnalyticsStore {
+  private data: RealTimeAnalytics
+  private listeners: Set<(data: RealTimeAnalytics) => void> = new Set()
+  private isInitialized = false
+
+  constructor() {
+    this.data = this.getInitialData()
+    this.loadFromStorage()
+  }
+
+  private getInitialData(): RealTimeAnalytics {
+    return {
+      totalRatings: 0,
+      totalShares: 0,
+      leaderRatings: {},
+      shareAnalytics: [],
+      lastUpdated: new Date().toISOString(),
+      activeUsers: 1,
+    }
+  }
+
+  private loadFromStorage() {
+    if (typeof window === "undefined") return
+
+    try {
+      const stored = localStorage.getItem("nigerian-cabinet-analytics")
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        this.data = { ...this.getInitialData(), ...parsed }
+        console.log("📊 Loaded analytics from storage:", this.data)
+      }
+    } catch (error) {
+      console.error("Failed to load analytics from storage:", error)
+    }
+    this.isInitialized = true
+  }
+
+  private saveToStorage() {
+    if (typeof window === "undefined") return
+
+    try {
+      localStorage.setItem("nigerian-cabinet-analytics", JSON.stringify(this.data))
+    } catch (error) {
+      console.error("Failed to save analytics to storage:", error)
+    }
+  }
+
+  subscribe(callback: (data: RealTimeAnalytics) => void) {
+    this.listeners.add(callback)
+
+    // Immediately call with current data
+    if (this.isInitialized) {
+      callback(this.data)
+    }
+
+    return () => {
+      this.listeners.delete(callback)
+    }
+  }
+
+  private notify() {
+    this.data.lastUpdated = new Date().toISOString()
+    this.saveToStorage()
+    this.listeners.forEach((callback) => {
+      try {
+        callback(this.data)
+      } catch (error) {
+        console.error("Error in analytics listener:", error)
+      }
+    })
+  }
+
+  trackRating(officialId: string, rating: number) {
+    this.data.totalRatings += 1
+
+    if (!this.data.leaderRatings[officialId]) {
+      this.data.leaderRatings[officialId] = {
+        officialId,
+        averageRating: rating,
+        totalRatings: 1,
+        ratingDistribution: { [rating]: 1 },
+        lastUpdated: new Date().toISOString(),
+        performanceMetrics: {
+          approvalRating: Math.round((rating / 5) * 100),
+          trendsUp: rating > 3,
+          monthlyChange: Math.random() * 5,
+        },
+      }
+    } else {
+      const current = this.data.leaderRatings[officialId]
+      const newTotal = current.totalRatings + 1
+      const newAverage = (current.averageRating * current.totalRatings + rating) / newTotal
+
+      current.averageRating = newAverage
+      current.totalRatings = newTotal
+      current.ratingDistribution[rating] = (current.ratingDistribution[rating] || 0) + 1
+      current.lastUpdated = new Date().toISOString()
+      current.performanceMetrics.approvalRating = Math.round((newAverage / 5) * 100)
+      current.performanceMetrics.trendsUp = newAverage > 3
+    }
+
+    console.log(`✅ Rating tracked: ${officialId} = ${rating}/5 (Total: ${this.data.totalRatings})`)
+    this.notify()
+  }
+
+  trackShare(platform: SharePlatform) {
+    this.data.totalShares += 1
+
+    const existingShare = this.data.shareAnalytics.find((s) => s.platform === platform)
+    if (existingShare) {
+      existingShare.count += 1
+      existingShare.lastShared = new Date().toISOString()
+      existingShare.trend = "up"
+      existingShare.velocity += 1
+    } else {
+      this.data.shareAnalytics.push({
+        platform,
+        count: 1,
+        lastShared: new Date().toISOString(),
+        trend: "up",
+        velocity: 1,
+      })
+    }
+
+    console.log(`📊 Share tracked: ${platform} (Total: ${this.data.totalShares})`)
+    this.notify()
+  }
+
+  getData() {
+    return this.data
+  }
+
+  reset() {
+    this.data = this.getInitialData()
+    this.saveToStorage()
+    this.notify()
+    console.log("🔄 Analytics data reset")
+  }
+}
+
+// Global instance
+const analyticsStore = new AnalyticsStore()
+
 interface UseRealTimeAnalyticsOptions {
   autoStart?: boolean
   pollingInterval?: number
@@ -42,160 +186,82 @@ interface UseRealTimeAnalyticsOptions {
 }
 
 export function useRealTimeAnalytics(options: UseRealTimeAnalyticsOptions = {}) {
-  const { autoStart = true, pollingInterval = 5000, onUpdate, onError } = options
+  const { onUpdate, onError } = options
 
   const [data, setData] = useState<RealTimeAnalytics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isConnected, setIsConnected] = useState(false)
+  const [isConnected, setIsConnected] = useState(true)
   const [hasNewData, setHasNewData] = useState(false)
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const lastUpdateRef = useRef<string | null>(null)
 
-  const fetchAnalytics = useCallback(async () => {
-    try {
-      const response = await fetch("/api/analytics/real-time")
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const result = await response.json()
-
-      if (result.success) {
-        const newData = result.data
-        setData(newData)
-        setIsConnected(true)
-        setError(null)
-
-        // Check if this is new data
-        const isNewUpdate = lastUpdateRef.current !== newData.lastUpdated
-        if (isNewUpdate && lastUpdateRef.current !== null) {
-          setHasNewData(true)
-          setTimeout(() => setHasNewData(false), 3000)
-        }
-
-        lastUpdateRef.current = newData.lastUpdated
-
-        if (onUpdate) {
-          onUpdate(newData)
-        }
-      } else {
-        throw new Error(result.error || "Failed to fetch analytics")
-      }
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error("Unknown error")
-      setError(error.message)
-      setIsConnected(false)
-
-      if (onError) {
-        onError(error)
-      }
-
-      console.error("❌ Analytics fetch error:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [onUpdate, onError])
-
-  const trackRating = useCallback(async (officialId: string, rating: number) => {
-    try {
-      const response = await fetch("/api/analytics/real-time", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": localStorage.getItem("userId") || `user_${Date.now()}`,
-        },
-        body: JSON.stringify({
-          type: "rating",
-          data: { officialId, rating },
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const result = await response.json()
-
-      if (result.success) {
-        setData(result.data)
+  const trackRating = useCallback(
+    async (officialId: string, rating: number) => {
+      try {
+        analyticsStore.trackRating(officialId, rating)
         setHasNewData(true)
         setTimeout(() => setHasNewData(false), 3000)
-
-        console.log(`✅ Rating tracked: ${officialId} = ${rating}/5`)
-      } else {
-        throw new Error(result.error || "Failed to track rating")
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error("Unknown error")
+        console.error("❌ Rating tracking error:", error)
+        if (onError) onError(error)
       }
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error("Unknown error")
-      console.error("❌ Rating tracking error:", error)
-      throw error
-    }
-  }, [])
+    },
+    [onError],
+  )
 
-  const trackShare = useCallback(async (platform: SharePlatform) => {
-    try {
-      const response = await fetch("/api/analytics/real-time", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": localStorage.getItem("userId") || `user_${Date.now()}`,
-        },
-        body: JSON.stringify({
-          type: "share",
-          data: { platform },
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const result = await response.json()
-
-      if (result.success) {
-        setData(result.data)
+  const trackShare = useCallback(
+    async (platform: SharePlatform) => {
+      try {
+        analyticsStore.trackShare(platform)
         setHasNewData(true)
         setTimeout(() => setHasNewData(false), 3000)
-
-        console.log(`📊 Share tracked: ${platform}`)
-      } else {
-        throw new Error(result.error || "Failed to track share")
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error("Unknown error")
+        console.error("❌ Share tracking error:", error)
+        if (onError) onError(error)
       }
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error("Unknown error")
-      console.error("❌ Share tracking error:", error)
-      throw error
-    }
-  }, [])
+    },
+    [onError],
+  )
 
-  const startPolling = useCallback(() => {
-    if (intervalRef.current) return
-
-    fetchAnalytics() // Initial fetch
-    intervalRef.current = setInterval(fetchAnalytics, pollingInterval)
-    console.log("🚀 Started real-time analytics polling")
-  }, [fetchAnalytics, pollingInterval])
-
-  const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-      console.log("⏹️ Stopped real-time analytics polling")
-    }
+  const refresh = useCallback(() => {
+    const currentData = analyticsStore.getData()
+    setData(currentData)
+    setIsLoading(false)
+    setError(null)
+    setIsConnected(true)
   }, [])
 
   useEffect(() => {
-    if (autoStart) {
-      startPolling()
-    }
+    console.log("📊 Setting up analytics subscription")
+
+    const unsubscribe = analyticsStore.subscribe((newData) => {
+      setData(newData)
+      setIsLoading(false)
+      setError(null)
+      setIsConnected(true)
+
+      // Check if this is new data
+      const isNewUpdate = lastUpdateRef.current !== newData.lastUpdated
+      if (isNewUpdate && lastUpdateRef.current !== null) {
+        setHasNewData(true)
+        setTimeout(() => setHasNewData(false), 3000)
+      }
+
+      lastUpdateRef.current = newData.lastUpdated
+
+      if (onUpdate) {
+        onUpdate(newData)
+      }
+    })
 
     return () => {
-      stopPolling()
+      console.log("📊 Cleaning up analytics subscription")
+      unsubscribe()
     }
-  }, [autoStart, startPolling, stopPolling])
+  }, [onUpdate])
 
   return {
     data,
@@ -205,9 +271,9 @@ export function useRealTimeAnalytics(options: UseRealTimeAnalyticsOptions = {}) 
     hasNewData,
     trackRating,
     trackShare,
-    refresh: fetchAnalytics,
-    startPolling,
-    stopPolling,
+    refresh,
+    startPolling: () => {}, // No-op since we don't need polling
+    stopPolling: () => {}, // No-op since we don't need polling
   }
 }
 
@@ -230,43 +296,13 @@ export function useAnalyticsData() {
 
 // Hook for leader-specific analytics
 export function useLeaderAnalytics(officialId: string) {
-  const [data, setData] = useState<LeaderRating | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { data } = useRealTimeAnalytics()
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const fetchLeaderAnalytics = async () => {
-      try {
-        setIsLoading(true)
-        const response = await fetch(`/api/leaders/${officialId}/analytics`)
+  const leaderData = data?.leaderRatings[officialId] || null
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-        }
-
-        const result = await response.json()
-
-        if (result.success) {
-          setData(result.data)
-          setError(null)
-        } else {
-          throw new Error(result.error || "Failed to fetch leader analytics")
-        }
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error("Unknown error")
-        setError(error.message)
-        console.error("❌ Leader analytics error:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (officialId) {
-      fetchLeaderAnalytics()
-    }
-  }, [officialId])
-
-  return { data, isLoading, error }
+  return { data: leaderData, isLoading, error }
 }
 
 // Hook for tracking shares with analytics
@@ -275,10 +311,6 @@ export function useShareTracking() {
 
   const trackShareWithFeedback = useCallback(
     async (platform: SharePlatform) => {
-      if (!isConnected) {
-        console.warn("⚠️ Analytics not connected, tracking locally only")
-      }
-
       await trackShare(platform)
 
       // Provide user feedback
@@ -286,7 +318,7 @@ export function useShareTracking() {
         navigator.vibrate(50) // Haptic feedback on mobile
       }
     },
-    [trackShare, isConnected],
+    [trackShare],
   )
 
   return {
@@ -294,3 +326,6 @@ export function useShareTracking() {
     isConnected,
   }
 }
+
+// Export the store for admin functions
+export const resetAnalytics = () => analyticsStore.reset()
