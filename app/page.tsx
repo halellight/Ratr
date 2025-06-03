@@ -78,7 +78,7 @@ const defaultOfficials = [
   {
     id: "education",
     name: "Minister of Education",
-    fullName: "Prof. Tahir Mamman",
+    fullName: "Dr. Tunji Alausa",
     position: "Minister of Education",
     image: "/placeholder.svg?height=120&width=120",
     category: "Social Services",
