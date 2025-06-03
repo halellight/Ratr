@@ -63,8 +63,8 @@ export function OfficialRating({
   // Get real-time analytics for this leader
   const { data: leaderAnalytics, isLoading: analyticsLoading } = useLeaderAnalytics(official.id)
 
-  // Get biography data
-  const biography = getLeaderBiography(official.id)
+  // Get biography data with fallback
+  const biography = getLeaderBiography(official.id) || null
 
   const currentRating = hoveredStar || rating[0]
   const currentLabel = ratingLabels.find((label) => label.value === currentRating)
@@ -238,37 +238,41 @@ export function OfficialRating({
                   <p className="text-sm text-gray-600 leading-relaxed">{biography.biography}</p>
                 </div>
 
-                <div>
-                  <h4 className="font-semibold text-sm text-gray-700 mb-2">Key Achievements</h4>
-                  <ul className="text-sm text-gray-600 space-y-1">
-                    {biography.keyAchievements.slice(0, 3).map((achievement, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <span className="text-green-500 mt-1">•</span>
-                        <span>{achievement}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {biography.keyAchievements && biography.keyAchievements.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-sm text-gray-700 mb-2">Key Achievements</h4>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      {biography.keyAchievements.slice(0, 3).map((achievement, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-green-500 mt-1">•</span>
+                          <span>{achievement}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
-                <div>
-                  <h4 className="font-semibold text-sm text-gray-700 mb-2">Current Focus</h4>
-                  <ul className="text-sm text-gray-600 space-y-1">
-                    {biography.currentFocus.slice(0, 3).map((focus, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <span className="text-blue-500 mt-1">•</span>
-                        <span>{focus}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {biography.currentFocus && biography.currentFocus.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-sm text-gray-700 mb-2">Current Focus</h4>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      {biography.currentFocus.slice(0, 3).map((focus, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-blue-500 mt-1">•</span>
+                          <span>{focus}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 <div className="pt-2 border-t">
                   <div className="text-xs text-gray-500">
                     <p>
-                      <strong>Years in Office:</strong> {biography.yearsInOffice}
+                      <strong>Years in Office:</strong> {biography.yearsInOffice || "N/A"}
                     </p>
                     <p>
-                      <strong>Category:</strong> {biography.category}
+                      <strong>Category:</strong> {biography.category || official.category}
                     </p>
                   </div>
                 </div>

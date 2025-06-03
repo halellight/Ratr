@@ -268,3 +268,29 @@ export function useLeaderAnalytics(officialId: string) {
 
   return { data, isLoading, error }
 }
+
+// Hook for tracking shares with analytics
+export function useShareTracking() {
+  const { trackShare, isConnected } = useRealTimeAnalytics()
+
+  const trackShareWithFeedback = useCallback(
+    async (platform: SharePlatform) => {
+      if (!isConnected) {
+        console.warn("⚠️ Analytics not connected, tracking locally only")
+      }
+
+      await trackShare(platform)
+
+      // Provide user feedback
+      if (typeof window !== "undefined" && "navigator" in window && "vibrate" in navigator) {
+        navigator.vibrate(50) // Haptic feedback on mobile
+      }
+    },
+    [trackShare, isConnected],
+  )
+
+  return {
+    trackShare: trackShareWithFeedback,
+    isConnected,
+  }
+}

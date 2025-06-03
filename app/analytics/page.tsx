@@ -22,7 +22,7 @@ import {
 } from "lucide-react"
 import { useRealTimeAnalytics } from "@/app/hooks/use-real-time-analytics"
 import Link from "next/link"
-import { getAllBiographies } from "@/app/data/leader-biographies"
+import { getAllLeaderBiographies } from "@/app/data/leader-biographies"
 
 /**
  * Real Analytics Dashboard v18 - Real Data Only
@@ -119,7 +119,7 @@ const AnalyticsPage = () => {
 
   // Filter stats based on time range
   const filteredStats =
-    data?.snapshot.data.filter((stat) => {
+    data?.shareAnalytics?.filter((stat) => {
       if (timeRange === "all" || !stat.lastShared) return true
 
       const lastShared = new Date(stat.lastShared)
@@ -156,10 +156,10 @@ const AnalyticsPage = () => {
 
   // Export data as CSV
   const exportCSV = () => {
-    if (!data?.snapshot) return
+    if (!data?.shareAnalytics) return
 
     const headers = ["Platform", "Shares", "Last Shared", "Trend", "Velocity (per hour)"]
-    const rows = data.snapshot.data.map((stat) => [
+    const rows = data.shareAnalytics.map((stat) => [
       formatPlatformName(stat.platform),
       stat.count.toString(),
       stat.lastShared ? formatDate(stat.lastShared) : "Never",
@@ -202,7 +202,7 @@ const AnalyticsPage = () => {
           </div>
 
           {/* Last Updated */}
-          {data?.snapshot.lastUpdated && (
+          {data?.lastUpdated && (
             <div
               className={`flex items-center gap-2 text-sm ${
                 hasNewData ? "text-green-600 animate-pulse" : "text-gray-500"
@@ -210,16 +210,14 @@ const AnalyticsPage = () => {
             >
               <Clock className="w-4 h-4" />
               <span>
-                {hasNewData ? "Just updated!" : "Last updated:"} {formatDate(data.snapshot.lastUpdated)}
+                {hasNewData ? "Just updated!" : "Last updated:"} {formatDate(data.lastUpdated)}
               </span>
               {hasNewData && <Badge className="bg-green-500 text-white">Live</Badge>}
             </div>
           )}
 
           {/* Version Info */}
-          <div className="text-xs text-gray-400">
-            v{data?.snapshot.metadata.version} • Updates: {data?.snapshot.metadata.updateCount || 0} • Real Data Only
-          </div>
+          <div className="text-xs text-gray-400">v18 • Real Data Only</div>
         </div>
       </div>
 
@@ -266,7 +264,7 @@ const AnalyticsPage = () => {
         </div>
 
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportCSV} disabled={!data?.snapshot}>
+          <Button variant="outline" size="sm" onClick={exportCSV} disabled={!data?.shareAnalytics}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -361,7 +359,7 @@ const AnalyticsPage = () => {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {data?.snapshot.data.reduce((sum, stat) => sum + (stat.velocity || 0), 0) || 0}
+                  {data?.shareAnalytics?.reduce((sum, stat) => sum + (stat.velocity || 0), 0) || 0}
                 </div>
                 <p className="text-sm text-gray-500 mt-2">Shares per hour</p>
               </>
@@ -463,7 +461,7 @@ const AnalyticsPage = () => {
                 .sort(([, a], [, b]) => b.averageRating - a.averageRating)
                 .slice(0, 6)
                 .map(([officialId, rating]) => {
-                  const biography = getAllBiographies().find((bio) => bio.id === officialId)
+                  const biography = getAllLeaderBiographies().find((bio) => bio.id === officialId)
                   return (
                     <Card key={officialId} className="border-2 hover:border-green-200 transition-colors">
                       <CardHeader className="pb-3">

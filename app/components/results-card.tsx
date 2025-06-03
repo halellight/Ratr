@@ -271,14 +271,14 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
             <div className="hidden md:block">
               <div
                 ref={cardRef}
-                className="w-full bg-white relative overflow-hidden"
-                style={{
-                  width: "1200px",
-                  height: "630px",
-                  margin: "0 auto",
-                  transform: "scale(0.8)",
-                  transformOrigin: "top center",
-                }}
+                className="w-full bg-white relative overflow-hidden bg-gradient-to-br from-green-600 via-green-700 to-green-800 rounded-2xl"
+                // style={{
+                //   width: "1200px",
+                //   height: "630px",
+                //   margin: "0 auto",
+                //   transform: "scale(0.8)",
+                //   transformOrigin: "top center",
+                // }}
               >
                 {/* Solid background instead of gradient for canvas compatibility */}
                 <div className="absolute inset-0 bg-green-700"></div>
@@ -388,7 +388,7 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                   {/* Footer */}
                   <div className="flex items-center justify-between text-green-100 mt-8">
                     <p className="text-lg">Generated on {new Date().toLocaleDateString()} • #RateYourLeaders</p>
-                    <p className="text-lg font-medium">RateYourLeaders.ng</p>
+                    <p className="text-lg font-medium">Ratedem.vercel.app</p>
                   </div>
                 </div>
               </div>
