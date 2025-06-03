@@ -1,12 +1,14 @@
-"use client"
-
 import { Redis } from "@upstash/redis"
 
-// Initialize Redis client
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
+// Initialize Redis client - this will only work on the server side
+let redis: Redis | null = null
+
+if (typeof window === "undefined") {
+  redis = new Redis({
+    url: process.env.KV_REST_API_URL!,
+    token: process.env.KV_REST_API_TOKEN!,
+  })
+}
 
 export interface LeaderRating {
   officialId: string
@@ -44,14 +46,22 @@ class RedisAnalyticsService {
   private readonly SHARE_ANALYTICS_KEY = "nigeria:cabinet:share_analytics"
   private readonly ACTIVE_USERS_KEY = "nigeria:cabinet:active_users"
 
+  private getRedis(): Redis {
+    if (!redis) {
+      throw new Error("Redis client not initialized - this should only be called on the server")
+    }
+    return redis
+  }
+
   // Track a new rating
   async trackRating(officialId: string, rating: number, userId?: string): Promise<void> {
     try {
-      const pipeline = redis.pipeline()
+      const redisClient = this.getRedis()
+      const pipeline = redisClient.pipeline()
 
       // Update leader-specific ratings
       const leaderKey = `${this.LEADER_RATINGS_KEY}:${officialId}`
-      const currentData = (await redis.hgetall(leaderKey)) as any
+      const currentData = (await redisClient.hgetall(leaderKey)) as any
 
       const totalRatings = (currentData?.totalRatings || 0) + 1
       const currentAverage = currentData?.averageRating || 0
@@ -89,7 +99,8 @@ class RedisAnalyticsService {
   // Track share event
   async trackShare(platform: string, userId?: string): Promise<void> {
     try {
-      const pipeline = redis.pipeline()
+      const redisClient = this.getRedis()
+      const pipeline = redisClient.pipeline()
       const shareKey = `${this.SHARE_ANALYTICS_KEY}:${platform}`
 
       // Increment share count
@@ -124,18 +135,19 @@ class RedisAnalyticsService {
   // Get real-time analytics
   async getAnalytics(): Promise<RealTimeAnalytics> {
     try {
+      const redisClient = this.getRedis()
       const [globalData, activeUserKeys] = await Promise.all([
-        redis.hgetall(this.ANALYTICS_KEY),
-        redis.keys(`${this.ACTIVE_USERS_KEY}:*`),
+        redisClient.hgetall(this.ANALYTICS_KEY),
+        redisClient.keys(`${this.ACTIVE_USERS_KEY}:*`),
       ])
 
       // Get leader ratings
-      const leaderKeys = await redis.keys(`${this.LEADER_RATINGS_KEY}:*`)
+      const leaderKeys = await redisClient.keys(`${this.LEADER_RATINGS_KEY}:*`)
       const leaderRatings: Record<string, LeaderRating> = {}
 
       for (const key of leaderKeys) {
         const officialId = key.split(":").pop()!
-        const data = (await redis.hgetall(key)) as any
+        const data = (await redisClient.hgetall(key)) as any
 
         if (data && Object.keys(data).length > 0) {
           // Calculate performance metrics
@@ -159,17 +171,17 @@ class RedisAnalyticsService {
       }
 
       // Get share analytics
-      const shareKeys = await redis.keys(`${this.SHARE_ANALYTICS_KEY}:*`)
+      const shareKeys = await redisClient.keys(`${this.SHARE_ANALYTICS_KEY}:*`)
       const shareAnalytics: ShareAnalytics[] = []
 
       for (const key of shareKeys) {
         const platform = key.split(":").pop()!
-        const data = (await redis.hgetall(key)) as any
+        const data = (await redisClient.hgetall(key)) as any
 
         if (data && Object.keys(data).length > 0) {
           // Get velocity (shares in last hour)
           const velocityKey = `${key}:velocity`
-          const velocityCount = await redis.zcard(velocityKey)
+          const velocityCount = await redisClient.zcard(velocityKey)
 
           shareAnalytics.push({
             platform,
@@ -198,7 +210,8 @@ class RedisAnalyticsService {
   // Get leader-specific analytics
   async getLeaderAnalytics(officialId: string): Promise<LeaderRating | null> {
     try {
-      const data = (await redis.hgetall(`${this.LEADER_RATINGS_KEY}:${officialId}`)) as any
+      const redisClient = this.getRedis()
+      const data = (await redisClient.hgetall(`${this.LEADER_RATINGS_KEY}:${officialId}`)) as any
 
       if (!data || Object.keys(data).length === 0) {
         return null
@@ -229,9 +242,10 @@ class RedisAnalyticsService {
   // Reset analytics (admin only)
   async resetAnalytics(): Promise<void> {
     try {
-      const keys = await redis.keys("nigeria:cabinet:*")
+      const redisClient = this.getRedis()
+      const keys = await redisClient.keys("nigeria:cabinet:*")
       if (keys.length > 0) {
-        await redis.del(...keys)
+        await redisClient.del(...keys)
       }
       console.log("🗑️ Analytics data reset")
     } catch (error) {

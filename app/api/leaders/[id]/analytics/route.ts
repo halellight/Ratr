@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { redisAnalytics } from "@/app/services/redis-analytics"
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = params
+    const { id } = await params
     const analytics = await redisAnalytics.getLeaderAnalytics(id)
 
     if (!analytics) {
