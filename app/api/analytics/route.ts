@@ -10,7 +10,7 @@ type ShareData = {
   velocity: number;
 };
 
-const ANALYTICS_KEY = "analytics:v19";
+const ANALYTICS_KEY = "analytics:v21";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     data: analytics.data,
     lastUpdated: analytics.lastUpdated,
     serverTime: new Date().toISOString(),
-    version: "19",
+    version: "21",
   });
 }
 

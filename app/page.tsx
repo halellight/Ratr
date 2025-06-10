@@ -7,23 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Users, Share2, Settings, BarChart3, Globe, Activity } from "lucide-react"
 import { OfficialRating } from "./components/official-rating"
 import { ResultsCard } from "./components/results-card"
-import { AdminPanel } from "./components/admin-panel"
+// import { AdminPanel } from "./components/admin-panel"
 import { useUniversalAnalyticsData, useUniversalAnalytics } from "./services/universal-analytics"
-import "@/app/globals.css"
-import { NextResponse } from "next/server"
-// This is a placeholder for the Next.js API route that would handle analytics
-export async function GET() {
-  return NextResponse.json({
-    success: true,
-    data: {
-      totalRatings: 0,
-      totalShares: 0,
-      activeUsers: 0,
-      isConnected: true,
-      version: "1.0",
-    },
-  })
-}
+import { useRealTimeAnalytics } from "./services/real-time-analytics"
 
 const defaultOfficials = [
   {
@@ -93,7 +79,7 @@ const defaultOfficials = [
   {
     id: "education",
     name: "Minister of Education",
-    fullName: "Dr. Tunji Alausa",
+    fullName: "Prof. Tahir Mamman",
     position: "Minister of Education",
     image: "/placeholder.svg?height=120&width=120",
     category: "Social Services",
@@ -249,9 +235,21 @@ export default function Component() {
   const [cloudImages, setCloudImages] = useState<Record<string, string>>({})
   const [isLoadingImages, setIsLoadingImages] = useState(true)
 
-  // Universal analytics
-  const { trackRating } = useUniversalAnalytics()
-  const { totalRatings, totalShares, activeUsers, isConnected, version } = useUniversalAnalyticsData()
+  // Real-time analytics (primary data source)
+  const { trackRating, stats: realTimeStats } = useRealTimeAnalytics()
+
+  // Universal analytics (fallback)
+  const universalData = useUniversalAnalyticsData()
+  const { trackRating: universalTrackRating } = useUniversalAnalytics()
+
+  // Use real-time data when available, fallback to universal
+  const displayStats = {
+    totalRatings: realTimeStats?.totalRatings ?? universalData.totalRatings,
+    totalShares: realTimeStats?.totalShares ?? universalData.totalShares,
+    activeUsers: realTimeStats?.activeUsers ?? universalData.activeUsers,
+    isConnected: realTimeStats?.connectionStatus === "connected" ?? universalData.isConnected,
+    version: realTimeStats?.strategy === "websocket" ? "Real-time" : "Live",
+  }
 
   // Load officials data from localStorage and cloud images on component mount
   useEffect(() => {
@@ -303,8 +301,8 @@ export default function Component() {
 
   const handleRating = async (officialId: string, rating: number) => {
     try {
-      // Track rating in universal analytics
-      await trackRating(officialId, rating)
+      // Track rating in both systems for redundancy
+      await Promise.all([trackRating(officialId, rating), universalTrackRating(officialId, rating)])
 
       // Update local state
       setRatings((prev) => ({ ...prev, [officialId]: rating }))
@@ -342,7 +340,7 @@ export default function Component() {
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50">
         <div className="container mx-auto px-4 py-8">
           {/* Admin Button */}
-          <div className="fixed top-4 right-4 z-40">
+          {/* <div className="fixed top-4 right-4 z-40">
             <Button
               onClick={() => setShowAdminPanel(true)}
               variant="outline"
@@ -352,32 +350,35 @@ export default function Component() {
               <Settings className="w-4 h-4 mr-2" />
               Manage Photos
             </Button>
-          </div>
+          </div> */}
 
-          {/* Universal Analytics Status */}
-          <div className="fixed top-4 left-4 z-40">
+          {/* Real-Time Analytics Status */}
+          {/* <div className="fixed top-4 left-4 z-40">
             <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border">
               <div className="flex items-center gap-4 text-sm">
-                
                 <div className="flex items-center gap-1">
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
-                  <span className="font-medium">{isConnected ? "Global" : "Local"}</span>
+                  <Globe className="w-4 h-4 text-blue-500" />
+                  <span className="font-medium">{displayStats.version} Analytics</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className={`w-2 h-2 rounded-full ${displayStats.isConnected ? "bg-green-500" : "bg-red-500"}`} />
+                  <span className="font-medium">{displayStats.isConnected ? "Connected" : "Local"}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <BarChart3 className="w-4 h-4 text-blue-500" />
-                  <span>{totalRatings.toLocaleString()} ratings</span>
+                  <span>{displayStats.totalRatings.toLocaleString()} ratings</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Share2 className="w-4 h-4 text-green-500" />
-                  <span>{totalShares.toLocaleString()} shares</span>
+                  <span>{displayStats.totalShares.toLocaleString()} shares</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Activity className="w-4 h-4 text-purple-500" />
-                  <span>{activeUsers} active</span>
+                  <span>{displayStats.activeUsers} active</span>
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Simplified Hero Section - Action First */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 to-green-700 text-white mb-12">
@@ -391,38 +392,50 @@ export default function Component() {
               <h1 className="text-4xl md:text-5xl font-bold mb-4">Rate Nigeria's Leaders</h1>
 
               <p className="text-xl text-green-50 mb-8 max-w-2xl mx-auto">
-                Quick 2-minute rating • Get shareable results • Join {totalRatings.toLocaleString()}+ ratings
+                Quick 2-minute rating • Get shareable results • Join {displayStats.totalRatings.toLocaleString()}+
+                ratings
               </p>
 
               {/* Immediate Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
-                
                 <Button
                   size="lg"
                   onClick={() => {
-                    document.getElementById("categories")?.scrollIntoView({ behavior: "smooth" })
+                    setOfficialsToRate(officials)
+                    setCurrentOfficialIndex(0)
+                    setRatings({})
+                    setCurrentStep("rating")
                   }}
                   className="bg-white text-green-700 hover:bg-green-50 px-8 py-4 text-lg font-semibold rounded-full shadow-lg"
                 >
                   Start Rating Now →
                 </Button>
 
-                
+                <Button
+                  
+                  size="lg"
+                  className="bg-white text-green-700 hover:bg-green-50 px-8 py-4 text-lg font-semibold rounded-full shadow-lg"
+                  onClick={() => {
+                    document.getElementById("categories")?.scrollIntoView({ behavior: "smooth" })
+                  }}
+                >
+                  Choose Category First
+                </Button>
               </div>
 
-              {/* Quick Stats */}
+              {/* Quick Stats - Real-Time Data */}
               <div className="flex justify-center items-center gap-6 text-sm text-green-100">
                 <div className="flex items-center gap-1">
                   <Users className="w-4 h-4" />
-                  <span>{totalRatings.toLocaleString()} ratings</span>
+                  <span>{displayStats.totalRatings.toLocaleString()} ratings</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Share2 className="w-4 h-4" />
-                  <span>{totalShares.toLocaleString()} shares</span>
+                  <span>{displayStats.totalShares.toLocaleString()} shares</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Activity className="w-4 h-4" />
-                  <span>{activeUsers} active now</span>
+                  <span>{displayStats.activeUsers} active now</span>
                 </div>
               </div>
             </div>
@@ -519,7 +532,7 @@ export default function Component() {
           </div>
 
           {/* Simple FAQ - Collapsible */}
-          <div className="max-w-2xl mx-auto pb-12">
+          <div className="max-w-2xl mx-auto">
             <details className="bg-white rounded-lg shadow-sm border p-4 mb-4">
               <summary className="font-medium cursor-pointer">How does this work?</summary>
               <p className="text-sm text-gray-600 mt-2">
@@ -544,13 +557,13 @@ export default function Component() {
           </div>
 
           {/* Admin Panel */}
-          {showAdminPanel && (
+          {/* {showAdminPanel && (
             <AdminPanel
               officials={officials}
               onUpdateOfficials={setOfficials}
               onClose={() => setShowAdminPanel(false)}
             />
-          )}
+          )} */}
         </div>
       </div>
     )

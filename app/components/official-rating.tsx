@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -18,9 +18,12 @@ import {
   TrendingDown,
   Users,
   BarChart3,
+  Wifi,
+  WifiOff,
 } from "lucide-react"
 import { useUniversalLeaderAnalytics } from "@/app/services/universal-analytics"
 import { getLeaderBiography } from "@/app/data/leader-biographies"
+import { useRealTimeAnalytics } from "@/app/services/real-time-analytics"
 
 interface Official {
   id: string
@@ -59,9 +62,34 @@ export function OfficialRating({
   const [rating, setRating] = useState([3])
   const [hoveredStar, setHoveredStar] = useState<number | null>(null)
   const [showBio, setShowBio] = useState(false)
+  const [hasUpdated, setHasUpdated] = useState(false)
+  const [localAnalytics, setLocalAnalytics] = useState<any>(null)
 
   // Get real-time analytics for this leader
+  const { trackRating, stats: realTimeStats } = useRealTimeAnalytics()
   const { data: leaderAnalytics, isLoading: analyticsLoading } = useUniversalLeaderAnalytics(official.id)
+
+  // Combine data sources for most up-to-date view
+  useEffect(() => {
+    if (leaderAnalytics) {
+      // Start with universal analytics data
+      const combinedData = { ...leaderAnalytics }
+
+      // If we have real-time data for this official, use the most recent values
+      if (realTimeStats?.leaderRatings?.[official.id]) {
+        const realTimeData = realTimeStats.leaderRatings[official.id]
+
+        // Use the most recent data
+        if (new Date(realTimeData.lastUpdated) > new Date(combinedData.lastUpdated)) {
+          combinedData.averageRating = realTimeData.averageRating
+          combinedData.totalRatings = realTimeData.totalRatings
+          combinedData.performanceMetrics = realTimeData.performanceMetrics
+        }
+      }
+
+      setLocalAnalytics(combinedData)
+    }
+  }, [leaderAnalytics, realTimeStats, official.id])
 
   // Get biography data with fallback
   const biography = getLeaderBiography(official.id) || null
@@ -71,6 +99,28 @@ export function OfficialRating({
   const IconComponent = currentLabel?.icon || Meh
 
   const progress = ((currentIndex + 1) / totalCount) * 100
+
+  // Handle rating submission with visual feedback
+  const handleRateSubmit = async () => {
+    try {
+      // Track the rating
+      await trackRating(official.id, rating[0])
+
+      // Show visual feedback
+      setHasUpdated(true)
+      setTimeout(() => setHasUpdated(false), 2000)
+
+      // Call the parent component's handler
+      onRate(official.id, rating[0])
+    } catch (error) {
+      console.error("Failed to submit rating:", error)
+      // Still call parent handler to continue flow
+      onRate(official.id, rating[0])
+    }
+  }
+
+  // Display data - use local analytics if available, otherwise use leaderAnalytics
+  const displayData = localAnalytics || leaderAnalytics
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -88,7 +138,9 @@ export function OfficialRating({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Rating Card */}
         <div className="lg:col-span-2">
-          <Card className="shadow-xl border-0">
+          <Card
+            className={`shadow-xl border-0 ${hasUpdated ? "ring-2 ring-green-500 transition-all duration-500" : ""}`}
+          >
             <CardHeader className="text-center pb-6">
               <div className="flex items-center justify-between mb-4">
                 <Button
@@ -104,7 +156,13 @@ export function OfficialRating({
                 <Badge variant="outline" className="text-sm">
                   {currentIndex + 1} of {totalCount}
                 </Badge>
-                <div className="w-20" /> {/* Spacer for alignment */}
+                <div className="w-20 flex justify-end">
+                  {realTimeStats?.connectionStatus === "connected" ? (
+                    <Wifi className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <WifiOff className="w-4 h-4 text-gray-400" />
+                  )}
+                </div>
               </div>
 
               <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gray-200 overflow-hidden shadow-lg">
@@ -124,17 +182,17 @@ export function OfficialRating({
               <p className="text-gray-600 mb-4">{official.position}</p>
 
               {/* Real-time Analytics Display */}
-              {leaderAnalytics && !analyticsLoading && (
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+              {displayData && !analyticsLoading && (
+                <div
+                  className={`bg-gray-50 rounded-lg p-4 mb-4 ${hasUpdated ? "bg-green-50 transition-colors duration-500" : ""}`}
+                >
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
                       <div className="flex items-center justify-center gap-1 mb-1">
                         <BarChart3 className="w-4 h-4 text-blue-500" />
                         <span className="text-sm font-medium">Current Rating</span>
                       </div>
-                      <div className="text-2xl font-bold text-blue-600">
-                        {leaderAnalytics.averageRating.toFixed(1)}/5
-                      </div>
+                      <div className="text-2xl font-bold text-blue-600">{displayData.averageRating.toFixed(1)}/5</div>
                     </div>
                     <div>
                       <div className="flex items-center justify-center gap-1 mb-1">
@@ -142,12 +200,12 @@ export function OfficialRating({
                         <span className="text-sm font-medium">Total Ratings</span>
                       </div>
                       <div className="text-2xl font-bold text-green-600">
-                        {leaderAnalytics.totalRatings.toLocaleString()}
+                        {displayData.totalRatings.toLocaleString()}
                       </div>
                     </div>
                     <div>
                       <div className="flex items-center justify-center gap-1 mb-1">
-                        {leaderAnalytics.performanceMetrics.trendsUp ? (
+                        {displayData.performanceMetrics.trendsUp ? (
                           <TrendingUp className="w-4 h-4 text-green-500" />
                         ) : (
                           <TrendingDown className="w-4 h-4 text-red-500" />
@@ -156,10 +214,10 @@ export function OfficialRating({
                       </div>
                       <div
                         className={`text-2xl font-bold ${
-                          leaderAnalytics.performanceMetrics.trendsUp ? "text-green-600" : "text-red-600"
+                          displayData.performanceMetrics.trendsUp ? "text-green-600" : "text-red-600"
                         }`}
                       >
-                        {leaderAnalytics.performanceMetrics.approvalRating}%
+                        {displayData.performanceMetrics.approvalRating}%
                       </div>
                     </div>
                   </div>
@@ -210,8 +268,8 @@ export function OfficialRating({
                 </Button>
 
                 <Button
-                  onClick={() => onRate(official.id, rating[0])}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleRateSubmit}
+                  className={`flex-1 ${hasUpdated ? "bg-green-700" : "bg-green-600 hover:bg-green-700"} text-white`}
                   size="lg"
                 >
                   {currentIndex === totalCount - 1 ? "Finish Rating" : "Next Official"}

@@ -27,6 +27,7 @@ class BlobAnalyticsService {
       const blob = await put(this.BLOB_PATH, JSON.stringify(blobData, null, 2), {
         access: "public",
         contentType: "application/json",
+        allowOverwrite: true,
       })
 
       console.log("✅ Blob: Analytics data stored successfully:", blob.url)
