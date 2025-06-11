@@ -3,7 +3,7 @@ import "@/app/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import type { Metadata } from "next"
 import { Analytics } from "@vercel/analytics/next"
-import { RealTimeAnalyticsHeader } from "./components/real-time-analytics-header"
+
 
 // import { ErrorBoundary } from "./components/error-boundary"
 // import { UniversalAnalyticsHeader } from "./components/universal-analytics-header"
@@ -68,9 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-satoshi">
 
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-            <div className="flex justify-center">
-            <RealTimeAnalyticsHeader />
-            </div>
+            
             {children}
           </ThemeProvider>
        

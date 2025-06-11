@@ -10,6 +10,7 @@ import { ResultsCard } from "./components/results-card"
 // import { AdminPanel } from "./components/admin-panel"
 import { useUniversalAnalyticsData, useUniversalAnalytics } from "./services/universal-analytics"
 import { useRealTimeAnalytics } from "./services/real-time-analytics"
+import { RealTimeAnalyticsHeader } from "./components/real-time-analytics-header"
 
 const defaultOfficials = [
   {
@@ -379,6 +380,9 @@ export default function Component() {
               </div>
             </div>
           </div> */}
+          <div className="flex justify-center">
+            <RealTimeAnalyticsHeader />
+          </div>
 
           {/* Simplified Hero Section - Action First */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 to-green-700 text-white mb-12">

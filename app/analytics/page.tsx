@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { BarChart3, Users, Share2, TrendingUp, Clock, Activity, Zap, Database, Wifi } from "lucide-react"
+import { BarChart3, Users, Share2, TrendingUp, Clock, Activity, Zap, Database, Wifi, Star, Award } from "lucide-react"
 import { useUniversalAnalyticsData } from "@/app/services/universal-analytics"
 import { useRealTimeAnalytics } from "@/app/services/real-time-analytics"
 import { RealTimeActivityFeed } from "@/app/components/real-time-activity-feed"
+import { getAllLeaderBiographies } from "@/app/data/leader-biographies"
 import Link from "next/link"
 
 function AnalyticsContent() {
@@ -21,11 +22,73 @@ function AnalyticsContent() {
     totalRatings: realTimeStats?.totalRatings ?? universalData.totalRatings,
     totalShares: realTimeStats?.totalShares ?? universalData.totalShares,
     activeUsers: realTimeStats?.activeUsers ?? universalData.activeUsers,
+    leaderRatings: realTimeStats?.leaderRatings ?? universalData.leaderRatings,
+    shareAnalytics: universalData.shareAnalytics,
     isConnected: realTimeStats?.connectionStatus === "connected" ?? universalData.isConnected,
     lastUpdated: realTimeStats?.lastUpdate ?? universalData.lastUpdated,
     strategy: realTimeStats?.strategy ?? "universal",
     latency: realTimeStats?.latency ?? 0,
+    isRedisConnected: universalData.isRedisConnected,
   }
+
+  // Calculate real metrics from actual data
+  const engagementRate =
+    displayData.totalRatings > 0 ? ((displayData.totalShares / displayData.totalRatings) * 100).toFixed(1) : "0"
+
+  const averageRating =
+    displayData.totalRatings > 0 && Object.keys(displayData.leaderRatings).length > 0
+      ? (
+          Object.values(displayData.leaderRatings).reduce((sum, leader) => sum + leader.averageRating, 0) /
+          Object.keys(displayData.leaderRatings).length
+        ).toFixed(1)
+      : null
+
+  // Get top rated leaders from real data
+  const topRatedLeaders = Object.values(displayData.leaderRatings)
+    .filter((leader) => leader.totalRatings >= 3) // Only show leaders with at least 3 ratings
+    .sort((a, b) => b.averageRating - a.averageRating)
+    .slice(0, 5)
+
+  // Get most active leaders (by rating count)
+  const mostActiveLeaders = Object.values(displayData.leaderRatings)
+    .sort((a, b) => b.totalRatings - a.totalRatings)
+    .slice(0, 5)
+
+  // Calculate category statistics from real data
+  const categoryStats = getAllLeaderBiographies().reduce(
+    (acc, leader) => {
+      const leaderData = displayData.leaderRatings[leader.id]
+      if (leaderData) {
+        if (!acc[leader.category]) {
+          acc[leader.category] = { totalRatings: 0, totalLeaders: 0, averageRating: 0 }
+        }
+        acc[leader.category].totalRatings += leaderData.totalRatings
+        acc[leader.category].totalLeaders += 1
+        acc[leader.category].averageRating += leaderData.averageRating
+      }
+      return acc
+    },
+    {} as Record<string, { totalRatings: number; totalLeaders: number; averageRating: number }>,
+  )
+
+  // Calculate final category averages
+  Object.keys(categoryStats).forEach((category) => {
+    if (categoryStats[category].totalLeaders > 0) {
+      categoryStats[category].averageRating =
+        categoryStats[category].averageRating / categoryStats[category].totalLeaders
+    }
+  })
+
+  // Sort categories by total ratings
+  const sortedCategories = Object.entries(categoryStats)
+    .sort(([, a], [, b]) => b.totalRatings - a.totalRatings)
+    .slice(0, 5)
+
+  // Get most popular share platforms from real data
+  const popularPlatforms = displayData.shareAnalytics
+    .filter((platform) => platform.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3)
 
   const formatLastUpdated = (timestamp: string | null) => {
     if (!timestamp) return "Never"
@@ -57,6 +120,23 @@ function AnalyticsContent() {
     return "Offline"
   }
 
+  const formatPlatformName = (platform: string) => {
+    switch (platform) {
+      case "twitter":
+        return "Twitter/X"
+      case "facebook":
+        return "Facebook"
+      case "whatsapp":
+        return "WhatsApp"
+      case "copy":
+        return "Copy Link"
+      case "native":
+        return "Native Share"
+      default:
+        return platform
+    }
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
@@ -84,10 +164,10 @@ function AnalyticsContent() {
                   )}
                   <span className={`font-medium ${getConnectionStatusColor()}`}>{getConnectionStatusText()}</span>
                 </div>
-                {realTimeStats?.strategy === "websocket" && (
+                {displayData.isRedisConnected && (
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    <span className="text-sm text-gray-600">Live updates</span>
+                    <span className="text-sm text-gray-600">Redis Connected</span>
                   </div>
                 )}
               </div>
@@ -103,7 +183,9 @@ function AnalyticsContent() {
                   <Clock className="w-4 h-4" />
                   <span>Updated {formatLastUpdated(displayData.lastUpdated)}</span>
                 </div>
-                <Badge variant={displayData.isConnected ? "default" : "secondary"}>{displayData.strategy}</Badge>
+                <Badge variant={displayData.isConnected ? "default" : "secondary"}>
+                  {displayData.isRedisConnected ? "Redis" : displayData.strategy}
+                </Badge>
               </div>
             </div>
           </CardContent>
@@ -121,7 +203,7 @@ function AnalyticsContent() {
           <CardContent>
             <div className="text-2xl font-bold">{displayData.totalRatings.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              {realTimeStats?.strategy === "websocket" ? "Real-time updates" : "Live tracking"}
+              {Object.keys(displayData.leaderRatings).length} leaders rated
             </p>
           </CardContent>
         </Card>
@@ -134,7 +216,11 @@ function AnalyticsContent() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{displayData.totalShares.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Across all social platforms</p>
+            <p className="text-xs text-muted-foreground">
+              {popularPlatforms.length > 0
+                ? `Top: ${formatPlatformName(popularPlatforms[0].platform)}`
+                : "No shares yet"}
+            </p>
           </CardContent>
         </Card>
 
@@ -157,12 +243,7 @@ function AnalyticsContent() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {displayData.totalRatings > 0
-                ? ((displayData.totalShares / displayData.totalRatings) * 100).toFixed(1)
-                : 0}
-              %
-            </div>
+            <div className="text-2xl font-bold">{engagementRate}%</div>
             <p className="text-xs text-muted-foreground">Shares per rating</p>
           </CardContent>
         </Card>
@@ -182,14 +263,16 @@ function AnalyticsContent() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Connection Status */}
+            {/* Database Connection */}
             <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${displayData.isConnected ? "bg-green-500" : "bg-red-500"}`} />
-                <span className="font-medium">Database Connection</span>
+                <div
+                  className={`w-3 h-3 rounded-full ${displayData.isRedisConnected ? "bg-green-500" : "bg-yellow-500"}`}
+                />
+                <span className="font-medium">Database</span>
               </div>
-              <Badge variant={displayData.isConnected ? "default" : "destructive"}>
-                {displayData.isConnected ? "Connected" : "Disconnected"}
+              <Badge variant={displayData.isRedisConnected ? "default" : "secondary"}>
+                {displayData.isRedisConnected ? "Redis Connected" : "Fallback Mode"}
               </Badge>
             </div>
 
@@ -235,82 +318,143 @@ function AnalyticsContent() {
         </Card>
       </div>
 
-      {/* Additional Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quick Stats */}
+      {/* Data-Driven Analytics */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* Top Rated Leaders */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Quick Stats</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Star className="w-5 h-5" />
+              Top Rated Leaders
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Average Rating</span>
-              <span className="font-medium">{displayData.totalRatings > 0 ? "4.2/5" : "N/A"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Most Active Hour</span>
-              <span className="font-medium">2:00 PM</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Peak Users</span>
-              <span className="font-medium">{Math.max(displayData.activeUsers, 12)}</span>
-            </div>
+          <CardContent>
+            {topRatedLeaders.length > 0 ? (
+              <div className="space-y-3">
+                {topRatedLeaders.map((leader, index) => {
+                  const biography = getAllLeaderBiographies().find((bio) => bio.id === leader.officialId)
+                  return (
+                    <div key={leader.officialId} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
+                        <div>
+                          <p className="font-medium text-sm">{biography?.fullName || leader.officialId}</p>
+                          <p className="text-xs text-gray-500">{leader.totalRatings} ratings</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600">{leader.averageRating.toFixed(1)}/5</p>
+                        <p className="text-xs text-gray-500">{leader.performanceMetrics.approvalRating}%</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Star className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No ratings yet</p>
+                <p className="text-xs">Start rating leaders to see top performers</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Top Categories */}
+        {/* Category Performance */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Popular Categories</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Award className="w-5 h-5" />
+              Category Performance
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Executive</span>
-              <div className="flex items-center gap-2">
-                <Progress value={85} className="w-16 h-2" />
-                <span className="text-sm font-medium">85%</span>
+          <CardContent>
+            {sortedCategories.length > 0 ? (
+              <div className="space-y-3">
+                {sortedCategories.map(([category, stats]) => (
+                  <div key={category} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{category}</span>
+                      <span className="text-sm text-gray-600">{stats.averageRating.toFixed(1)}/5</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Progress value={(stats.averageRating / 5) * 100} className="flex-1 h-2" />
+                      <span className="text-xs text-gray-500">{stats.totalRatings}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Economic Team</span>
-              <div className="flex items-center gap-2">
-                <Progress value={72} className="w-16 h-2" />
-                <span className="text-sm font-medium">72%</span>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Award className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No category data yet</p>
+                <p className="text-xs">Rate leaders to see category performance</p>
               </div>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Social Services</span>
-              <div className="flex items-center gap-2">
-                <Progress value={68} className="w-16 h-2" />
-                <span className="text-sm font-medium">68%</span>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* System Info */}
+        {/* Share Platform Analytics */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">System Information</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Share2 className="w-5 h-5" />
+              Share Platforms
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Version</span>
-              <Badge variant="outline">v2.1.0</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Strategy</span>
-              <Badge variant={realTimeStats?.strategy === "websocket" ? "default" : "secondary"}>
-                {displayData.strategy}
-              </Badge>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Uptime</span>
-              <span className="font-medium text-green-600">99.9%</span>
-            </div>
+          <CardContent>
+            {popularPlatforms.length > 0 ? (
+              <div className="space-y-3">
+                {popularPlatforms.map((platform) => (
+                  <div key={platform.platform} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{formatPlatformName(platform.platform)}</span>
+                      <span className="text-sm text-gray-600">{platform.count} shares</span>
+                    </div>
+                    <Progress
+                      value={(platform.count / Math.max(...popularPlatforms.map((p) => p.count))) * 100}
+                      className="h-2"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Share2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No shares yet</p>
+                <p className="text-xs">Share your ratings to see platform analytics</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Real Data Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Data Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold text-blue-600">{Object.keys(displayData.leaderRatings).length}</p>
+              <p className="text-sm text-gray-600">Leaders Rated</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-green-600">{averageRating ? `${averageRating}/5` : "N/A"}</p>
+              <p className="text-sm text-gray-600">Average Rating</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-purple-600">{sortedCategories.length}</p>
+              <p className="text-sm text-gray-600">Active Categories</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-orange-600">{popularPlatforms.length}</p>
+              <p className="text-sm text-gray-600">Share Platforms Used</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
