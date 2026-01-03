@@ -565,6 +565,116 @@ const leaderBiographies: LeaderBiography[] = [
     yearsInOffice: "2024–Present",
     education: "Bayero University Kano",
     previousRoles: ["Speaker, Kano State House of Assembly", "Majority Leader, Kano State House of Assembly"],
+  },
+  {
+    id: "agriculture",
+    fullName: "Abubakar Kyari",
+    position: "Minister of Agriculture and Food Security",
+    category: "Economic Team",
+    biography: "Abubakar Kyari is a seasoned politician who assumed office as Minister of Agriculture and Food Security in August 2023. He previously served as a Senator for Borno North (2015-2022) and was briefly the APC National Chairman.",
+    keyAchievements: [
+      "Declared a state of emergency on food security and launched massive agricultural reforms",
+      "Procured and distributed 2,000 tractors with a long-term goal of 10,000 for mechanization",
+      "Successfully oversaw a bountiful 2024 farming season with increased yields in rice and maize",
+      "Injected approximately N309 billion into the economy through agricultural interventions in a single year"
+    ],
+    currentFocus: [
+      "Stabilizing food prices and boosting national production of staples",
+      "Accelerating dry-season farming and irrigation projects",
+      "Modernizing farming through technology and drones",
+      "Improving local fertilizer production and distribution"
+    ],
+    yearsInOffice: "2023–Present",
+    education: "University of Tennessee, Martin; Webster University (MBA)",
+    previousRoles: ["Senator for Borno North", "Borno State Commissioner", "APC National Chairman"],
+  },
+  {
+    id: "aviation",
+    fullName: "Festus Keyamo CON SAN",
+    position: "Minister of Aviation and Aerospace Development",
+    category: "Infrastructure",
+    biography: "Festus Keyamo is a prominent human rights lawyer and Senior Advocate of Nigeria. Appointed in August 2023, he has implemented a 5-point agenda to modernize Nigeria's aviation sector.",
+    keyAchievements: [
+      "Cleared 98% of the $850 million backlog of trapped funds for international airlines",
+      "Removed Nigeria from the AWG watchlist, improving aviation ratings to over 70%",
+      "Signed a landmark agreement with Boeing to develop MRO facilities and pilot training",
+      "Resolved long-standing infrastructure issues at the Abuja and Lagos international runways"
+    ],
+    currentFocus: [
+      "Digitizing airport services and improving passenger security through 'Operation AirClean'",
+      "Expanding direct international routes for Nigerian flag carriers",
+      "Boosting human capital development at the Nigerian College of Aviation Technology (NCAT)",
+      "Modernizing national airport infrastructure via Public-Private Partnerships"
+    ],
+    yearsInOffice: "2023–Present",
+    education: "Ambrose Alli University (LL.B)",
+    previousRoles: ["Minister of State for Labour", "Minister of State for Niger Delta", "Human Rights Activist"],
+  },
+  {
+    id: "justice",
+    fullName: "Lateef Fagbemi SAN",
+    position: "Minister of Justice and Attorney General of the Federation",
+    category: "Security",
+    biography: "Prince Lateef Fagbemi is a distinguished jurist with nearly 40 years of legal experience. He became one of Nigeria's youngest SANs at age 37 and now leads justice sector reforms.",
+    keyAchievements: [
+      "Affirmed financial and administrative autonomy for Local Governments via a landmark Supreme Court ruling",
+      "Successfully quashed the $11 billion P&ID arbitration award in a London court",
+      "Secured 250 convictions in terrorism-related cases within his first year",
+      "Facilitated major asset recovery agreements, including proceeds from Jersey and Glencore"
+    ],
+    currentFocus: [
+      "Comprehensive judicial and criminal justice reforms",
+      "Strengthening the legal framework for asset recovery and management",
+      "Combating cyber-crime through the establishment of Joint Case Teams",
+      "Expanding protections for vulnerable persons through new gender-based violence legislation"
+    ],
+    yearsInOffice: "2023–Present",
+    education: "University of Jos (LL.B); Obafemi Awolowo University (LL.M)",
+    previousRoles: ["Senior Advocate of Nigeria", "APC Lead Legal Counsel"],
+  },
+  {
+    id: "power",
+    fullName: "Adebayo Adelabu",
+    position: "Minister of Power",
+    category: "Infrastructure",
+    biography: "Adebayo Adelabu is a first-class accounting graduate and former Deputy Governor of the Central Bank of Nigeria. He is currently spearheading the 2023 Electricity Act reforms.",
+    keyAchievements: [
+      "Supervised a 30% increase in power generation, reaching a peak of 6,003 MW in early 2025",
+      "Commissioned the 700 MW Zungeru Hydroelectric Power Dam",
+      "Decentralized the power sector, activating 12 state-level electricity markets",
+      "Oversaw a 70% increase in power sector revenue through market liberalization"
+    ],
+    currentFocus: [
+      "Regionalizing the national grid into Eastern and Western Supergrids for stability",
+      "Deploying 1.1 million meters by 2025 under the Presidential Metering Initiative",
+      "Securing $2 billion in new investments for renewable energy and grid expansion",
+      "Eliminating the N4 trillion debt backlog to power generation companies"
+    ],
+    yearsInOffice: "2023–Present",
+    education: "Obafemi Awolowo University; LBS/Harvard/Stanford Executive Courses",
+    previousRoles: ["Deputy Governor, Central Bank of Nigeria", "Executive Director, First Bank of Nigeria"],
+  },
+  {
+    id: "health",
+    fullName: "Prof. Muhammad Ali Pate",
+    position: "Coordinating Minister of Health and Social Welfare",
+    category: "Social Services",
+    biography: "Prof. Muhammad Ali Pate is a globally recognized physician and former World Bank Director. He leads the Nigeria Health Sector Renewal Investment Initiative (NHSRII).",
+    keyAchievements: [
+      "Launched the NHSRII, securing $3 billion in international health financing",
+      "Successfully vaccinated over 12 million girls against HPV with 96% coverage",
+      "Upgraded over 900 Primary Healthcare Centers and trained thousands of frontline workers",
+      "Achieved 37 out of 41 key performance indicators within the first two years of tenure"
+    ],
+    currentFocus: [
+      "Expanding the 'Know Your Numbers' campaign to 10 million Nigerians",
+      "Medical industrialization through pharmaceutical manufacturing investments",
+      "Scaling the National Health Insurance coverage to 20 million citizens",
+      "Scaling malaria and diphtheria vaccination programs nationwide"
+    ],
+    yearsInOffice: "2023–Present",
+    education: "Ahmadu Bello University (MD); London School of Hygiene (MSc); Duke (MBA)",
+    previousRoles: ["World Bank Global Director for Health", "Professor at Harvard University"],
   }
 ]
 

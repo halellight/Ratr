@@ -77,7 +77,7 @@ export function Footer() {
                             <span>Built with</span>
                             <Heart className="w-4 h-4 text-rose-500 fill-current animate-pulse" />
                             <span>for Nigeria by</span>
-                            <a href="#" className="text-gray-900 font-black hover:text-emerald-600 transition-colors">Praise Ibe</a>
+                            <a href="h" className="text-gray-900 font-black hover:text-emerald-600 transition-colors">Praise Ibe</a>
                         </div>
                     </div>
                 </div>
