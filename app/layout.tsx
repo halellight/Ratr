@@ -55,23 +55,27 @@ export const viewport = {
   initialScale: 1,
 }
 
+import { Footer } from "./components/footer"
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <Analytics />
         <link
-          href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900,300&display=swap"
+          href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900,300&f[]=outfit@400,500,600,700,800,900&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="font-satoshi">
-
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-            
-            {children}
-          </ThemeProvider>
-       
+      <body className="font-outfit antialiased selection:bg-green-100 selection:text-green-900">
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+          <div className="flex flex-col min-h-screen">
+            <main className="flex-grow">
+              {children}
+            </main>
+            <Footer />
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   )

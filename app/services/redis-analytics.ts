@@ -188,7 +188,7 @@ class RedisAnalyticsService {
       const newAverage = (currentAverage * currentTotal + rating) / newTotal
 
       // Handle rating distribution
-      let distribution = {}
+      let distribution: Record<number, number> = {}
       if (currentData?.ratingDistribution) {
         distribution = this.safeParse(currentData.ratingDistribution)
       }
@@ -210,7 +210,7 @@ class RedisAnalyticsService {
 
       // Update global analytics
       await redisClient.hincrby(this.ANALYTICS_KEY, "totalRatings", 1)
-      await redisClient.hset(this.ANALYTICS_KEY, "lastUpdated", new Date().toISOString())
+      await redisClient.hset(this.ANALYTICS_KEY, { lastUpdated: new Date().toISOString() })
 
       console.log(`✅ Redis: Global analytics updated - vote logged successfully!`)
 
@@ -232,11 +232,11 @@ class RedisAnalyticsService {
 
       // Increment share count
       await redisClient.hincrby(shareKey, "count", 1)
-      await redisClient.hset(shareKey, "lastShared", new Date().toISOString())
+      await redisClient.hset(shareKey, { lastShared: new Date().toISOString() })
 
       // Update global share count
       await redisClient.hincrby(this.ANALYTICS_KEY, "totalShares", 1)
-      await redisClient.hset(this.ANALYTICS_KEY, "lastUpdated", new Date().toISOString())
+      await redisClient.hset(this.ANALYTICS_KEY, { lastUpdated: new Date().toISOString() })
 
       console.log(`✅ Redis: Share tracked successfully for ${platform}`)
 
@@ -255,7 +255,7 @@ class RedisAnalyticsService {
       console.log("📊 Redis: Getting analytics data...")
 
       // Get global data
-      const globalData = await redisClient.hgetall(this.ANALYTICS_KEY)
+      const globalData = (await redisClient.hgetall(this.ANALYTICS_KEY)) as any
 
       // If Redis is empty, try to restore from Blob
       if (!globalData || Object.keys(globalData).length === 0) {
@@ -277,7 +277,7 @@ class RedisAnalyticsService {
 
       for (const key of leaderKeys) {
         const officialId = key.split(":").pop()!
-        const data = await redisClient.hgetall(key)
+        const data = (await redisClient.hgetall(key)) as any
 
         if (data && Object.keys(data).length > 0) {
           const averageRating = Number(data.averageRating || 0)
@@ -305,7 +305,7 @@ class RedisAnalyticsService {
 
       for (const key of shareKeys) {
         const platform = key.split(":").pop()!
-        const data = await redisClient.hgetall(key)
+        const data = (await redisClient.hgetall(key)) as any
 
         if (data && Object.keys(data).length > 0) {
           shareAnalytics.push({
@@ -332,12 +332,12 @@ class RedisAnalyticsService {
         }
       })
 
-      const result = {
+      const result: RealTimeAnalytics = {
         totalRatings: Number(globalData?.totalRatings || 0),
         totalShares: Number(globalData?.totalShares || 0),
         leaderRatings,
         shareAnalytics,
-        lastUpdated: globalData?.lastUpdated || new Date().toISOString(),
+        lastUpdated: (globalData?.lastUpdated as string) || new Date().toISOString(),
         activeUsers: 1,
       }
 

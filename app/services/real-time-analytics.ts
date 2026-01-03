@@ -557,31 +557,23 @@ export function useRealTimeAnalytics(config?: Partial<RealTimeConfig>) {
     async (officialId: string, rating: number) => {
       try {
         console.log(`🗳️ Hook: tracking rating ${officialId} = ${rating}/5`)
-
-        // Track in both systems for reliability
-        await Promise.all([
-          serviceRef.current?.trackRating(officialId, rating),
-          universalTrackRating(officialId, rating),
-        ])
+        await serviceRef.current?.trackRating(officialId, rating)
       } catch (error) {
         console.error("Failed to track rating:", error)
-        // Fallback to universal analytics only
-        await universalTrackRating(officialId, rating)
       }
     },
-    [universalTrackRating],
+    [],
   )
 
   const trackShare = useCallback(
     async (platform: SharePlatform) => {
       try {
-        await Promise.all([serviceRef.current?.trackShare(platform), universalTrackShare(platform)])
+        await serviceRef.current?.trackShare(platform)
       } catch (error) {
         console.error("Failed to track share:", error)
-        await universalTrackShare(platform)
       }
     },
-    [universalTrackShare],
+    [],
   )
 
   return {

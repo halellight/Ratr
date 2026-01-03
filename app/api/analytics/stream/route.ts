@@ -14,20 +14,20 @@ export async function GET(req: Request) {
     return writer.write(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
   }
 
-  const ratingSub = redis.subscribe("analytics:rating", {
-    async message(data) {
+  const ratingSub = (redis as any).subscribe("analytics:rating", {
+    async message(data: any) {
       await write("rating", data)
     },
   })
 
-  const shareSub = redis.subscribe("analytics:share", {
-    async message(data) {
+  const shareSub = (redis as any).subscribe("analytics:share", {
+    async message(data: any) {
       await write("share", data)
     },
   })
 
-  const activeSub = redis.subscribe("analytics:active", {
-    async message(data) {
+  const activeSub = (redis as any).subscribe("analytics:active", {
+    async message(data: any) {
       await write("active", data)
     },
   })

@@ -51,13 +51,14 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
   const [downloadProgress, setDownloadProgress] = useState(0)
 
   // Use universal analytics system - FIXED IMPORT
-  const { trackShare, isConnected, error: shareError } = useUniversalShareTracking()
+  const { trackShare, error: shareError } = useUniversalShareTracking()
   const {
     totalShares,
     shareAnalytics,
     activeUsers,
     version,
     isRedisConnected,
+    isConnected,
     error: analyticsError,
   } = useUniversalAnalyticsData()
 
@@ -115,7 +116,7 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
           return (
             classList.contains("gradient-problematic") ||
             element.tagName === "CANVAS" ||
-            (element.style && element.style.background && element.style.background.includes("gradient"))
+            Boolean(element instanceof HTMLElement && element.style && element.style.background && element.style.background.includes("gradient"))
           )
         },
         onclone: (clonedDoc) => {
@@ -363,9 +364,8 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                             {[1, 2, 3, 4, 5].map((star) => (
                               <div
                                 key={star}
-                                className={`w-8 h-8 ${
-                                  star <= Math.round(averageRating) ? "text-yellow-400" : "text-white opacity-50"
-                                }`}
+                                className={`w-8 h-8 ${star <= Math.round(averageRating) ? "text-yellow-400" : "text-white opacity-50"
+                                  }`}
                               >
                                 ★
                               </div>
@@ -410,9 +410,8 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                                       {[1, 2, 3, 4, 5].map((star) => (
                                         <span
                                           key={star}
-                                          className={`text-lg ${
-                                            star <= rating ? "text-yellow-400" : "text-white opacity-30"
-                                          }`}
+                                          className={`text-lg ${star <= rating ? "text-yellow-400" : "text-white opacity-30"
+                                            }`}
                                         >
                                           ★
                                         </span>
@@ -431,7 +430,7 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                   {/* Footer */}
                   <div className="flex items-center justify-between text-green-100 mt-8">
                     <p className="text-lg">Generated on {new Date().toLocaleDateString()} • #RateYourLeaders</p>
-                    <p className="text-lg font-medium">RateYourLeaders.ng</p>
+                    <p className="text-lg font-medium">Ratedem.ng</p>
                   </div>
                 </div>
               </div>
@@ -463,9 +462,8 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                         {[1, 2, 3, 4, 5].map((star) => (
                           <div
                             key={star}
-                            className={`w-6 h-6 ${
-                              star <= Math.round(averageRating) ? "text-yellow-400" : "text-white text-opacity-50"
-                            }`}
+                            className={`w-6 h-6 ${star <= Math.round(averageRating) ? "text-yellow-400" : "text-white text-opacity-50"
+                              }`}
                           >
                             ★
                           </div>
@@ -509,9 +507,8 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                                 {[1, 2, 3, 4, 5].map((star) => (
                                   <span
                                     key={star}
-                                    className={`text-sm ${
-                                      star <= rating ? "text-yellow-400" : "text-white text-opacity-30"
-                                    }`}
+                                    className={`text-sm ${star <= rating ? "text-yellow-400" : "text-white text-opacity-30"
+                                      }`}
                                   >
                                     ★
                                   </span>

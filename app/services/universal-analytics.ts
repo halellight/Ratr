@@ -88,7 +88,7 @@ class UniversalAnalyticsStore {
       if (stored) {
         this.data = { ...this.getInitialData(), ...JSON.parse(stored) }
       }
-    } catch {}
+    } catch { }
 
     this.isInitialized = true
     this.notifyListeners()
@@ -231,6 +231,23 @@ class UniversalAnalyticsStore {
     this.notifyListeners()
   }
 
+  async refresh() {
+    try {
+      const response = await fetch("/api/analytics/universal")
+      if (response.ok) {
+        const newData = await response.json()
+        this.data = { ...this.data, ...newData }
+        this.notifyListeners()
+      }
+    } catch (err) {
+      this.notifyError(new Error("Failed to refresh analytics data"))
+    }
+  }
+
+  isConnected() {
+    return this.data.isRedisConnected
+  }
+
   getSummary(): AnalyticsSummary {
     const trending = this.data.shareAnalytics
       .filter((s) => s.trend === "up")
@@ -239,7 +256,7 @@ class UniversalAnalyticsStore {
 
     const mostPopular =
       this.data.totalShares > 0
-        ? this.data.shareAnalytics.reduce((max, s) => (s.count > max.count ? s : max)).platform
+        ? this.data.shareAnalytics.reduce((max, s: any) => (s.count > max.count ? s : max)).platform
         : null
 
     return {
@@ -249,7 +266,7 @@ class UniversalAnalyticsStore {
       trending,
       lastUpdate: this.data.lastUpdated,
       activeUsers: this.data.activeUsers,
-      isConnected: true,
+      isConnected: this.isConnected(),
     }
   }
 }
@@ -279,11 +296,12 @@ export function useUniversalAnalytics() {
     trackRating: universalAnalyticsStore.trackRating.bind(universalAnalyticsStore),
     trackShare: universalAnalyticsStore.trackShare.bind(universalAnalyticsStore),
     reset: universalAnalyticsStore.resetAllData.bind(universalAnalyticsStore),
+    refresh: universalAnalyticsStore.refresh.bind(universalAnalyticsStore),
   }
 }
 
 export function useUniversalAnalyticsData() {
-  const { data, isLoading, error } = useUniversalAnalytics()
+  const { data, isLoading, error, refresh } = useUniversalAnalytics()
   return {
     totalRatings: data?.totalRatings || 0,
     totalShares: data?.totalShares || 0,
@@ -294,8 +312,10 @@ export function useUniversalAnalyticsData() {
     serverTime: data?.serverTime || null,
     version: data?.version || "21",
     isRedisConnected: data?.isRedisConnected || false,
+    isConnected: universalAnalyticsStore.isConnected(),
     isLoading,
     error,
+    refresh,
   }
 }
 

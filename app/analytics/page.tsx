@@ -24,7 +24,7 @@ function AnalyticsContent() {
     activeUsers: realTimeStats?.activeUsers ?? universalData.activeUsers,
     leaderRatings: realTimeStats?.leaderRatings ?? universalData.leaderRatings,
     shareAnalytics: universalData.shareAnalytics,
-    isConnected: realTimeStats?.connectionStatus === "connected" ?? universalData.isConnected,
+    isConnected: (realTimeStats?.connectionStatus === "connected") || universalData.isConnected,
     lastUpdated: realTimeStats?.lastUpdate ?? universalData.lastUpdated,
     strategy: realTimeStats?.strategy ?? "universal",
     latency: realTimeStats?.latency ?? 0,
@@ -38,9 +38,9 @@ function AnalyticsContent() {
   const averageRating =
     displayData.totalRatings > 0 && Object.keys(displayData.leaderRatings).length > 0
       ? (
-          Object.values(displayData.leaderRatings).reduce((sum, leader) => sum + leader.averageRating, 0) /
-          Object.keys(displayData.leaderRatings).length
-        ).toFixed(1)
+        Object.values(displayData.leaderRatings).reduce((sum, leader) => sum + leader.averageRating, 0) /
+        Object.keys(displayData.leaderRatings).length
+      ).toFixed(1)
       : null
 
   // Get top rated leaders from real data
@@ -280,9 +280,8 @@ function AnalyticsContent() {
             <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-2">
                 <div
-                  className={`w-3 h-3 rounded-full ${
-                    realTimeStats?.connectionStatus === "connected" ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                  }`}
+                  className={`w-3 h-3 rounded-full ${realTimeStats?.connectionStatus === "connected" ? "bg-green-500 animate-pulse" : "bg-gray-400"
+                    }`}
                 />
                 <span className="font-medium">Real-Time Updates</span>
               </div>

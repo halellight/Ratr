@@ -43,16 +43,16 @@ class BlobAnalyticsService {
     try {
       console.log("📥 Blob: Retrieving analytics data...")
 
-      // Check if blob exists
+      // Check if blob exists and get its metadata
+      let blobInfo
       try {
-        await head(this.BLOB_PATH)
+        blobInfo = await head(this.BLOB_PATH)
       } catch (error) {
         console.log("📝 Blob: No existing analytics data found")
         return null
       }
 
-      // Fetch the data
-      const response = await fetch(`https://blob.vercel-storage.com/${this.BLOB_PATH}`)
+      const response = await fetch(blobInfo.url)
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -61,7 +61,7 @@ class BlobAnalyticsService {
       const data = await response.json()
       console.log("✅ Blob: Analytics data retrieved successfully")
 
-      return data
+      return data as BlobAnalyticsData
     } catch (error) {
       console.error("❌ Blob: Failed to retrieve analytics:", error)
       return null

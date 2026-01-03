@@ -29,7 +29,7 @@ export function AdminAuth({ onAuthenticated, onClose }: AdminAuthProps) {
 
   // Add escape key handler
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
+    const handleEscape = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape" && onClose) {
         onClose()
       }

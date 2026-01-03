@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         userId,
         sessionId,
         lastSeen: Date.now(),
-        userAgent,
+        userAgent: userAgent || undefined,
       })
     }
 
@@ -192,24 +192,24 @@ export async function POST(request: NextRequest) {
       try {
         if (event.type === "rating" && event.data?.officialId && event.data?.rating) {
           // Track rating
-          await redisAnalytics.trackRating(event.data.officialId, event.data.rating, userId)
+          await redisAnalytics.trackRating(event.data.officialId, event.data.rating, userId || undefined)
 
           // Add to recent events
           addEvent({
             ...event,
-            userId,
+            userId: userId || undefined,
             sessionId: sessionId || "unknown",
           })
 
           console.log(`🗳️ [${requestId}] Tracked rating: ${event.data.officialId} = ${event.data.rating}/5`)
         } else if (event.type === "share" && event.data?.platform) {
           // Track share
-          await redisAnalytics.trackShare(event.data.platform, userId)
+          await redisAnalytics.trackShare(event.data.platform, userId || undefined)
 
           // Add to recent events
           addEvent({
             ...event,
-            userId,
+            userId: userId || undefined,
             sessionId: sessionId || "unknown",
           })
 

@@ -64,7 +64,7 @@ export function RealTimeActivityFeed({
         const stars = "★".repeat(rating) + "☆".repeat(5 - rating)
         return (
           <div className="flex items-center gap-2">
-            <span>Rated {officialId?.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}</span>
+            <span>Rated {officialId?.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}</span>
             <span className="text-yellow-500 font-mono">{stars}</span>
             <Badge variant="outline" className="text-xs">
               {rating}/5
