@@ -203,7 +203,7 @@ function AnalyticsContent() {
           <CardContent>
             <div className="text-2xl font-bold">{displayData.totalRatings.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              {Object.keys(displayData.leaderRatings).length} leaders rated
+              {Object.keys(displayData.leaderRatings).length} unique leaders rated
             </p>
           </CardContent>
         </Card>

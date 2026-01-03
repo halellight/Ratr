@@ -422,8 +422,8 @@ export function OfficialRating({
                       )}
                       <Star
                         className={`w-12 h-12 md:w-14 md:h-14 transition-all duration-300 ${star <= currentRating
-                            ? "fill-yellow-400 text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]"
-                            : "text-gray-200 fill-transparent hover:text-yellow-200"
+                          ? "fill-yellow-400 text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]"
+                          : "text-gray-200 fill-transparent hover:text-yellow-200"
                           }`}
                       />
                     </motion.button>
@@ -468,21 +468,11 @@ export function OfficialRating({
               {/* Navigation Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 pt-6">
                 <Button
-                  variant="outline"
-                  onClick={onBack}
-                  disabled={currentIndex === 0 || isSubmitting}
-                  className="flex-1 py-8 text-lg font-bold rounded-2xl border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-all border-2"
-                >
-                  <ChevronLeft className="w-5 h-5 mr-2" />
-                  Discard & Back
-                </Button>
-
-                <Button
                   onClick={handleRateSubmit}
                   disabled={isSubmitting || validationErrors.length > 0}
                   className={`flex-1 py-8 text-lg font-black rounded-2xl shadow-2xl transition-all hover:scale-[1.02] active:scale-95 border-b-4 ${hasUpdated
-                      ? "bg-emerald-700 border-emerald-900"
-                      : "bg-emerald-600 hover:bg-emerald-700 border-emerald-800 text-white"
+                    ? "bg-emerald-700 border-emerald-900"
+                    : "bg-emerald-600 hover:bg-emerald-700 border-emerald-800 text-white"
                     }`}
                   size="lg"
                 >
@@ -495,6 +485,18 @@ export function OfficialRating({
                     </div>
                   )}
                 </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={onBack}
+                  disabled={currentIndex === 0 || isSubmitting}
+                  className="flex-1 py-8 text-lg font-bold rounded-2xl border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-all border-2"
+                >
+                  <ChevronLeft className="w-5 h-5 mr-2" />
+                  Discard & Back
+                </Button>
+
+
               </div>
             </CardContent>
           </Card>

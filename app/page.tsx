@@ -380,26 +380,15 @@ export default function Component() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50">
         <div className="container mx-auto px-4 py-8">
-          {/* Admin Button */}
-          <div className="fixed top-4 right-4 z-40">
-            <Button
-              onClick={() => setShowAdminPanel(true)}
-              variant="outline"
-              size="sm"
-              className="bg-white/90 backdrop-blur-sm"
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Manage Photos
-            </Button>
-          </div>
+
 
           {/* Real-Time Analytics Status */}
           <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="fixed top-4 left-4 z-40 hidden md:block"
+            className="fixed top-4 left-4 right-4 md:right-auto z-40"
           >
-            <div className="glass-morphism rounded-full px-6 py-2 shadow-2xl border border-white/40 ring-1 ring-black/5">
+            <div className="glass-morphism rounded-full px-4 md:px-6 py-2 shadow-2xl border border-white/40 ring-1 ring-black/5 overflow-x-auto no-scrollbar">
               <div className="flex items-center gap-6 text-sm">
                 <div className="flex items-center gap-2">
                   <div className={`relative flex h-2 w-2`}>

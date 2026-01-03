@@ -27,9 +27,23 @@ export default function FeedbackPage() {
             return
         }
 
+        const formData = new FormData(e.target as HTMLFormElement)
+        const content = formData.get("suggestion") as string
+
         setIsSubmitting(true)
-        await new Promise(resolve => setTimeout(resolve, 1500))
-        toast.success("Thank you for your valuable feedback!")
+
+        // Direct feature requests and data corrections to email
+        if (selectedType === "feature" || selectedType === "data") {
+            const subject = selectedType === "feature" ? "New Feature Request" : "Data Correction Request"
+            const mailtoUrl = `mailto:praiseibec@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(content)}`
+            window.location.href = mailtoUrl
+            toast.success("Opening your email client to send the request...")
+        } else {
+            // Simulate API call for other types
+            await new Promise(resolve => setTimeout(resolve, 1500))
+            toast.success("Thank you for your valuable feedback!")
+        }
+
         setIsSubmitting(false)
             ; (e.target as HTMLFormElement).reset()
         setSelectedType(null)
@@ -83,8 +97,8 @@ export default function FeedbackPage() {
                                                 type="button"
                                                 onClick={() => setSelectedType(type.id)}
                                                 className={`flex flex-col items-center justify-center p-6 rounded-3xl border-2 transition-all duration-300 gap-3 group ${isSelected
-                                                        ? "border-emerald-500 bg-white shadow-xl scale-105"
-                                                        : "border-gray-100 bg-white/50 hover:border-emerald-200"
+                                                    ? "border-emerald-500 bg-white shadow-xl scale-105"
+                                                    : "border-gray-100 bg-white/50 hover:border-emerald-200"
                                                     }`}
                                             >
                                                 <div className={`w-12 h-12 ${type.bg} rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
@@ -102,6 +116,7 @@ export default function FeedbackPage() {
                             <div className="space-y-4">
                                 <label className="text-sm font-black text-gray-400 uppercase tracking-widest ml-1">Your Suggestion</label>
                                 <Textarea
+                                    name="suggestion"
                                     placeholder="In a perfect world, this platform would have..."
                                     className="min-h-[200px] rounded-[2rem] border-gray-100 bg-white/80 focus:ring-emerald-500 p-8 text-lg font-medium shadow-inner"
                                     required

@@ -120,30 +120,32 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
           )
         },
         onclone: (clonedDoc) => {
-          // Fix gradients in the cloned document
+          // Force the desktop version of the card to be visible for capture
+          const desktopCard = clonedDoc.querySelector('.md\\:block') as HTMLElement;
+          const mobileCard = clonedDoc.querySelector('.block.md\\:hidden') as HTMLElement;
+
+          if (desktopCard) {
+            desktopCard.style.display = 'block';
+            desktopCard.style.visibility = 'visible';
+            // Ensure all children are also forced to be visible if they use responsive classes
+            desktopCard.classList.remove('hidden');
+          }
+
+          if (mobileCard) {
+            mobileCard.style.display = 'none';
+          }
+
+          // Fix gradients and background colors in the cloned document
           const gradientElements = clonedDoc.querySelectorAll('[class*="gradient"], [style*="gradient"]')
           gradientElements.forEach((el: Element) => {
             const htmlEl = el as HTMLElement
             if (htmlEl.style) {
-              // Replace gradients with solid colors
               if (htmlEl.style.background && htmlEl.style.background.includes("gradient")) {
-                htmlEl.style.background = "#16a34a" // Green color
-              }
-              if (htmlEl.classList.contains("bg-gradient-to-br")) {
                 htmlEl.style.background = "#16a34a"
-                htmlEl.classList.remove("bg-gradient-to-br")
               }
-            }
-          })
-
-          // Ensure all text is visible
-          const textElements = clonedDoc.querySelectorAll("*")
-          textElements.forEach((el: Element) => {
-            const htmlEl = el as HTMLElement
-            if (htmlEl.style) {
-              // Ensure text colors are solid
-              if (htmlEl.style.color && htmlEl.style.color.includes("rgba")) {
-                htmlEl.style.color = "#ffffff"
+              if (htmlEl.classList.contains("bg-gradient-to-br") || htmlEl.classList.contains("bg-gradient-to-r")) {
+                htmlEl.style.background = "#15803d" // green-700
+                htmlEl.classList.remove("bg-gradient-to-br", "bg-gradient-to-r")
               }
             }
           })
@@ -391,14 +393,27 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                               return (
                                 <div key={official.id} className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-full bg-green-800 bg-opacity-40 flex items-center justify-center border border-green-400">
-                                      <span className="text-white font-bold text-sm">
-                                        {official.name
-                                          .split(" ")
-                                          .map((word) => word[0])
-                                          .join("")
-                                          .slice(0, 2)}
-                                      </span>
+                                    <div className="w-12 h-12 rounded-full bg-green-800 bg-opacity-40 flex items-center justify-center border border-green-400 overflow-hidden">
+                                      {official.image ? (
+                                        <img
+                                          src={official.image}
+                                          alt={official.name}
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            const target = e.target as HTMLImageElement;
+                                            target.style.display = 'none';
+                                            target.parentElement!.innerText = official.name[0];
+                                          }}
+                                        />
+                                      ) : (
+                                        <span className="text-white font-bold text-sm">
+                                          {official.name
+                                            .split(" ")
+                                            .map((word) => word[0])
+                                            .join("")
+                                            .slice(0, 2)}
+                                        </span>
+                                      )}
                                     </div>
                                     <div>
                                       <p className="text-white font-medium text-lg">{official.name}</p>
@@ -488,14 +503,27 @@ export function ResultsCard({ ratings, officials, onRestart }: ResultsCardProps)
                         return (
                           <div key={official.id} className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-white bg-opacity-20 flex items-center justify-center">
-                                <span className="text-white font-bold text-xs">
-                                  {official.name
-                                    .split(" ")
-                                    .map((word) => word[0])
-                                    .join("")
-                                    .slice(0, 2)}
-                                </span>
+                              <div className="w-8 h-8 rounded-full bg-white bg-opacity-20 flex items-center justify-center overflow-hidden">
+                                {official.image ? (
+                                  <img
+                                    src={official.image}
+                                    alt={official.name}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      target.style.display = 'none';
+                                      target.parentElement!.innerText = official.name[0];
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="text-white font-bold text-xs">
+                                    {official.name
+                                      .split(" ")
+                                      .map((word) => word[0])
+                                      .join("")
+                                      .slice(0, 2)}
+                                  </span>
+                                )}
                               </div>
                               <div>
                                 <p className="text-white font-medium text-sm">{official.name}</p>
